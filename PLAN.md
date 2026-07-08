@@ -55,8 +55,11 @@ Single-user. Resume по файлам в `output/` + журнал в SQLite.
 - [x] баннер «MOCK MODE» в Web UI
 - [x] `make clone` заблокирован при MOCK_MODE
 
-### CLI
+### CLI / обработка аудио
 - [x] `scripts/super_resolve.py` — ручной запуск без GUI
+- [x] утечка fd — `_suppress_stdout()`
+- [x] симметричный overlap-add (sin²/cos²)
+- [x] temp-файл через `Path` (`_48k.wav`)
 
 ### Makefile
 - [x] `start` / `stop` / `status` / `logs`
@@ -85,10 +88,30 @@ Single-user. Resume по файлам в `output/` + журнал в SQLite.
 
 ## Этап 3 — Улучшения (не реализован)
 
-- [ ] Celery вместо raw consumer (если устанет поддерживать worker)
-- [ ] soxr в ffmpeg, clip перед записью
+### Пайплайн и качество звука
+- [ ] ffmpeg: `-af aresample=resampler=soxr` (вместо дефолтного ресемпла)
+- [ ] `np.clip` перед записью WAV
+- [ ] единый ресемплер на входе/выходе (сейчас scipy + ffmpeg — двойная конверсия)
+- [ ] `OVERLAP` / `WINDOW_LEN` в CLI (дефолты оставить как сейчас)
+- [ ] lowpass toggle в Web UI
+
+### Производительность
+- [ ] `torch.compile(model)` — проверить на GPU
+- [ ] стерео: batch или параллельные CUDA streams (сейчас 2× последовательно)
+- [ ] выровнять CUDA в Docker (образ 12.2 / PyTorch cu118 → cu121/cu122)
+
+### UI и инфраструктура
 - [ ] удаление задач / очистка истории из UI
-- [ ] lowpass toggle в UI
+- [ ] Celery вместо raw consumer (если устанет поддерживать worker)
+- [ ] MP3/OGG: fallback через ffmpeg, если soundfile не тянет
+- [ ] сузить `warnings.filterwarnings("ignore")`
+
+### Эксперименты (по желанию)
+- [ ] постобработка: лимитер, shelf-EQ выше 16–18 kHz
+- [ ] бенчмарк: лог RTF / peak в JSON для сравнения настроек
+
+### Заметки по `--lowpass`
+По умолчанию выключен — правильно для полнополосной музыки. Включать только для узкополосного входа (телефония, сильный lossy). Заметно медленнее (CPU roundtrip на чанк).
 
 ---
 
