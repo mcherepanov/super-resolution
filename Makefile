@@ -1,4 +1,4 @@
-.PHONY: build up down stop start status console enhance logs clone
+.PHONY: build up down stop start status console enhance logs clone encode decode
 
 -include .env
 export
@@ -6,6 +6,9 @@ export
 WEB_PORT ?= 8080
 HF_REPO  ?= laion/FlashSR_One-step_Versatile_Audio_Super-resolution
 WEIGHTS_DST ?= ./volumes/FlashSR/weights
+ENV_FILE ?= .env
+ENV_VAULT ?= .env.vault
+VAULT_PASS_FILE ?= .vault_pass
 
 build:
 ifeq ($(MOCK_MODE),1)
@@ -94,3 +97,30 @@ else
 	@rm -rf .hf_staging
 	@echo "Готово: $(WEIGHTS_DST)"
 endif
+
+# Секреты: .env ↔ .env.vault (ansible-vault). Требует: apt install ansible-core
+encode:
+	@command -v ansible-vault >/dev/null 2>&1 || { \
+		echo "Нужен ansible-vault: sudo apt install ansible-core"; exit 1; }
+	@test -f "$(ENV_FILE)" || { echo "Нет $(ENV_FILE)"; exit 1; }
+	@if [ -f "$(VAULT_PASS_FILE)" ]; then \
+		ansible-vault encrypt "$(ENV_FILE)" --output "$(ENV_VAULT)" \
+			--vault-password-file "$(VAULT_PASS_FILE)"; \
+	else \
+		ansible-vault encrypt "$(ENV_FILE)" --output "$(ENV_VAULT)"; \
+	fi
+	@chmod 600 "$(ENV_VAULT)"
+	@echo "Готово: $(ENV_VAULT) (можно коммитить в git)"
+
+decode:
+	@command -v ansible-vault >/dev/null 2>&1 || { \
+		echo "Нужен ansible-vault: sudo apt install ansible-core"; exit 1; }
+	@test -f "$(ENV_VAULT)" || { echo "Нет $(ENV_VAULT) — git pull или make encode"; exit 1; }
+	@if [ -f "$(VAULT_PASS_FILE)" ]; then \
+		ansible-vault decrypt "$(ENV_VAULT)" --output "$(ENV_FILE)" \
+			--vault-password-file "$(VAULT_PASS_FILE)"; \
+	else \
+		ansible-vault decrypt "$(ENV_VAULT)" --output "$(ENV_FILE)"; \
+	fi
+	@chmod 600 "$(ENV_FILE)"
+	@echo "Готово: $(ENV_FILE)"

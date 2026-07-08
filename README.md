@@ -61,6 +61,7 @@ super-resolution/
 
 ```bash
 cp .env.example .env
+make decode     # или вручную заполнить .env
 make build
 make up
 ```
@@ -147,6 +148,25 @@ CUDA_VISIBLE_DEVICES=0 python3 scripts/super_resolve.py -i ./input -o ./output
 | `LOWPASS` | `1` / `true` — lowpass в worker |
 | `MOCK_MODE` | `1` — UI-тест без GPU (mock worker, см. ниже) |
 | `MOCK_DELAY_SEC` | пауза имитации обработки в mock (default: `3`) |
+
+### Секреты (ansible-vault)
+
+`.env` в git не попадает. Рабочие секреты хранятся в **`.env.vault`** (зашифровано, можно коммитить).
+
+```bash
+# локально: после правки .env
+make encode          # спросит пароль vault (или .vault_pass)
+
+# на сервере после git pull
+make decode          # → .env
+```
+
+Требуется `ansible-vault` (`sudo apt install ansible-core`).
+
+Опционально для CI/скриптов без prompt:
+```bash
+echo "пароль-vault" > .vault_pass && chmod 600 .vault_pass
+```
 
 ### MOCK_MODE — тест UI без GPU
 
