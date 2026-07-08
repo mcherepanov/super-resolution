@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Super Resolution{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-bar">
+    <div class="app-bar__inner">
+      <h1 class="app-bar__title">Super Resolution</h1>
+      <p class="subtitle">FlashSR — улучшение качества аудио</p>
+      {% if mock_mode %}
+      <p class="mock-banner">MOCK MODE — обработка имитируется, FlashSR не используется</p>
+      {% endif %}
+    </div>
+  </header>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

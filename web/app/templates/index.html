@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2 class="card__title">Загрузка</h2>
+  <form class="upload-form"
+        hx-post="/upload"
+        hx-target="#jobs-panel"
+        hx-swap="innerHTML"
+        hx-encoding="multipart/form-data"
+        enctype="multipart/form-data">
+    <div class="btn-row">
+      <label class="file-field">
+        <input type="file" name="files" accept=".wav,.flac,.mp3,.ogg,.opus" multiple required>
+      </label>
+      <button type="submit" class="btn btn--filled">Загрузить и в очередь</button>
+    </div>
+  </form>
+  <div class="btn-row">
+    <button type="button" class="btn btn--tonal"
+            hx-post="/queue-scan"
+            hx-target="#jobs-panel"
+            hx-swap="innerHTML">
+      Обработать всё из input/
+    </button>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card__title">Очередь и история</h2>
+  <div id="jobs-panel"
+       hx-get="/jobs/partial"
+       hx-trigger="load, every 3s"
+       hx-swap="innerHTML">
+    {% include "jobs_table.html" %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,29 @@
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# временные файлы обработки
+*_48k.wav
+
+data/app.db
+data/*.db
+
+.hf_staging/
+
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+
+# веса модели (~3 ГБ) — make clone
+volumes/FlashSR/weights/*
+!volumes/FlashSR/weights/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp

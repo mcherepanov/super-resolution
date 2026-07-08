@@ -1,0 +1,118 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sr_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - flashsr-network
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    container_name: sr_web
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    environment:
+      - INPUT_DIR=/app/input
+      - OUTPUT_DIR=/app/output
+      - DATABASE_PATH=/app/data/app.db
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - QUEUE_NAME=${QUEUE_NAME:-sr_jobs}
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      - MOCK_MODE=${MOCK_MODE:-0}
+    volumes:
+      - ./web/app:/app/app
+      - ./scripts/db.py:/app/scripts/db.py
+      - ./data:/app/data
+      - ${INPUT_DIR:-./input}:/app/input
+      - ${OUTPUT_DIR:-./output}:/app/output
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - flashsr-network
+
+  flashsr:
+    profiles: ["gpu"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: flashsr_gpu
+    runtime: nvidia
+    command: python3 scripts/worker.py
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - CUDA_VISIBLE_DEVICES=0
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN:-}
+      - WEIGHTS_DIR=/app/weights
+      - INPUT_DIR=/app/input
+      - OUTPUT_DIR=/app/output
+      - DATABASE_PATH=/app/data/app.db
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - QUEUE_NAME=${QUEUE_NAME:-sr_jobs}
+      - LOWPASS=${LOWPASS:-}
+    volumes:
+      - ./scripts:/app/scripts
+      - ./vendor/FlashSR:/app/vendor/FlashSR
+      - ./volumes/FlashSR/weights:/app/weights
+      - ./data:/app/data
+      - ${INPUT_DIR:-./input}:/app/input
+      - ${OUTPUT_DIR:-./output}:/app/output
+    working_dir: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - flashsr-network
+
+  worker-mock:
+    profiles: ["mock"]
+    build:
+      context: .
+      dockerfile: docker/worker-mock/Dockerfile
+    container_name: sr_worker_mock
+    environment:
+      - MOCK_MODE=1
+      - MOCK_DELAY_SEC=${MOCK_DELAY_SEC:-3}
+      - INPUT_DIR=/app/input
+      - OUTPUT_DIR=/app/output
+      - DATABASE_PATH=/app/data/app.db
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
+      - QUEUE_NAME=${QUEUE_NAME:-sr_jobs}
+    volumes:
+      - ./scripts/worker.py:/app/scripts/worker.py
+      - ./scripts/db.py:/app/scripts/db.py
+      - ./data:/app/data
+      - ${INPUT_DIR:-./input}:/app/input
+      - ${OUTPUT_DIR:-./output}:/app/output
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - flashsr-network
+
+networks:
+  flashsr-network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
