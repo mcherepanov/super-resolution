@@ -18,7 +18,7 @@ Single-user. Resume по файлам в `output/` + журнал в SQLite.
 
 ---
 
-## Этап 1 — MVP (текущая реализация)
+## Этап 1 — MVP ✅
 
 ### Инфраструктура
 - [x] `rabbitmq` в compose (management UI :15672)
@@ -46,18 +46,32 @@ Single-user. Resume по файлам в `output/` + журнал в SQLite.
 - [x] таблица истории/очереди (HTMX poll каждые 3 с)
 - [x] скачивание готовых WAV
 - [x] опциональный пароль `APP_PASSWORD` (HTTP Basic)
+- [x] Material Design 3 стили
 
 ### Mock-режим (локальный тест UI)
 - [x] `MOCK_MODE=1` в `.env`
 - [x] `worker-mock` контейнер (без GPU, без FlashSR)
 - [x] имитация: пауза + passthrough WAV 44.1 kHz
 - [x] баннер «MOCK MODE» в Web UI
+- [x] `make clone` заблокирован при MOCK_MODE
 
+### CLI
 - [x] `scripts/super_resolve.py` — ручной запуск без GUI
 
+### Makefile
+- [x] `start` / `stop` / `status` / `logs`
+- [x] `clone` — веса с HuggingFace
+
+### Git и секреты
+- [x] репозиторий на [GitVerse](https://gitverse.ru/Max_Cherep/super-resolution)
+- [x] `.gitignore` (`.env`, веса ~3 ГБ, аудио, `data/app.db`)
+- [x] SSH-ключ для `git@gitverse.ru`
+- [x] `make encode` / `make decode` — ansible-vault (`.env` ↔ `.env.vault`)
+- [x] `.env.vault` в git, `.vault_pass` локально
+
 ### Документация
-- [x] README — раздел Web UI
-- [x] `.env.example` — RabbitMQ, APP_PASSWORD, DATABASE_PATH
+- [x] README — Web UI, MOCK_MODE, vault, clone
+- [x] `.env.example`
 
 ---
 
@@ -85,12 +99,37 @@ Single-user. Resume по файлам в `output/` + журнал в SQLite.
 
 ---
 
-## Запуск этапа 1
+## Этап 5 — GitVerse CI/CD (не реализован)
+
+Платформа: [gitverse.ru](https://gitverse.ru) — российский аналог GitHub (СберТех), инфраструктура в РФ.
+
+### Что даёт GitVerse (кратко)
+- CI/CD: workflow YAML в `.gitverse/workflows/` (совместим с `.github/workflows/`)
+- облачные раннеры + **self-hosted** (нужен для GPU)
+- реестр пакетов: Docker, npm, Maven и др.
+- PR, issues, wiki, API
+- GigaCode (AI-ревью), GigaIDE Cloud, Pages
+
+### План интеграции
+- [ ] `.gitverse/workflows/deploy.yml` — деплой по push в `master`
+- [ ] self-hosted runner на GPU-сервере ([документация](https://gitverse.ru/docs/cicd/docs/runners/self-hosted))
+- [ ] шаги pipeline: `git pull` → `make decode` → `make clone` (если нет весов) → `make build` → `make up`
+- [ ] secrets в GitVerse CI для vault-пароля (или `.vault_pass` на сервере)
+- [ ] (опционально) push Docker-образов в registry GitVerse
+- [ ] (опционально) workflow для lint/smoke-теста в MOCK_MODE на облачном раннере
+
+### Почему self-hosted
+GPU-обработка FlashSR (~6 ГБ VRAM) — облачный раннер GitVerse GPU не подходит; runner на своей машине.
+
+---
+
+## Запуск
 
 ```bash
-cp .env.example .env
-make build
-make up
+git pull
+make decode          # .env из .env.vault
+make clone             # веса (MOCK_MODE=0)
+make build && make up
 # http://localhost:8080
 ```
 
