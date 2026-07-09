@@ -140,6 +140,7 @@ def _pipeline_form_dict(
     compand_intensity: str,
     loudnorm: str,
     enhance: str,
+    enhance_lowpass: str,
     resample_441: str,
     afftdn_slider: str,
     afftdn_nf_slider: str,
@@ -154,6 +155,7 @@ def _pipeline_form_dict(
         "compand_intensity": compand_intensity,
         "loudnorm": loudnorm,
         "enhance": enhance if ENHANCE_AVAILABLE else "",
+        "enhance_lowpass": enhance_lowpass if ENHANCE_AVAILABLE else "",
         "resample_441": resample_441,
         "afftdn_slider": afftdn_slider,
         "afftdn_nf_slider": afftdn_nf_slider,
@@ -338,6 +340,7 @@ async def process_files(
     compand_intensity: str = Form("50"),
     loudnorm: str = Form(""),
     enhance: str = Form(""),
+    enhance_lowpass: str = Form(""),
     resample_441: str = Form("on"),
     afftdn_slider: str = Form("50"),
     afftdn_nf_slider: str = Form("50"),
@@ -347,7 +350,7 @@ async def process_files(
     options = _pipeline_form_dict(
         denoise=denoise, eq=eq, highpass_hz=highpass_hz, lowpass_hz=lowpass_hz,
         compand=compand, compand_intensity=compand_intensity, loudnorm=loudnorm,
-        enhance=enhance, resample_441=resample_441,
+        enhance=enhance, enhance_lowpass=enhance_lowpass, resample_441=resample_441,
         afftdn_slider=afftdn_slider, afftdn_nf_slider=afftdn_nf_slider,
         output_format=output_format,
     )
@@ -395,6 +398,7 @@ async def process_cue(
     compand_intensity: str = Form("50"),
     loudnorm: str = Form(""),
     enhance: str = Form(""),
+    enhance_lowpass: str = Form(""),
     resample_441: str = Form("on"),
     afftdn_slider: str = Form("50"),
     afftdn_nf_slider: str = Form("50"),
@@ -416,7 +420,7 @@ async def process_cue(
     pipeline = _pipeline_form_dict(
         denoise=denoise, eq=eq, highpass_hz=highpass_hz, lowpass_hz=lowpass_hz,
         compand=compand, compand_intensity=compand_intensity, loudnorm=loudnorm,
-        enhance=enhance, resample_441=resample_441,
+        enhance=enhance, enhance_lowpass=enhance_lowpass, resample_441=resample_441,
         afftdn_slider=afftdn_slider, afftdn_nf_slider=afftdn_nf_slider,
         output_format=output_format,
     )

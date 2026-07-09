@@ -127,7 +127,11 @@ def run_pipeline(
         dur_hint, _ = _probe_duration(current)
         if MOCK_MODE:
             _mock_enhance_delay(dur_hint)
-        enhance_file(model, current, enhanced_dst, device=device, lowpass=LOWPASS)
+        enhance_file(
+            model, current, enhanced_dst,
+            device=device,
+            lowpass=bool(opts.get("enhance_lowpass", LOWPASS)),
+        )
         pcm_for_export = enhanced_dst
         out_sr = OUTPUT_SR
     elif opts.get("resample_441", True):

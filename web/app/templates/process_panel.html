@@ -88,6 +88,10 @@
       <input type="checkbox" name="enhance" value="on" id="enhance-cb">
       <span>С AI-улучшением (FlashSR, завершающий этап)</span>
     </label>
+    <label class="check-row enhance-lowpass-row hidden" id="enhance-lowpass-row">
+      <input type="checkbox" name="enhance_lowpass" value="on" id="enhance-lowpass-cb">
+      <span>Lowpass перед AI <span class="hint-inline">(узкополосный вход)</span></span>
+    </label>
     {% else %}
     <p class="hint">Режим «Только обработка» — AI недоступен.</p>
     {% endif %}
@@ -123,6 +127,8 @@
   const afftdnBox = form.querySelector('#afftdn-params');
   const enhanceCb = form.querySelector('#enhance-cb');
   const resampleCb = form.querySelector('#resample-cb');
+  const lowpassRow = form.querySelector('#enhance-lowpass-row');
+  const lowpassCb = form.querySelector('#enhance-lowpass-cb');
 
   function syncAfftdn() {
     const afftdn = form.querySelector('input[name="denoise"][value="afftdn"]');
@@ -137,6 +143,12 @@
         resampleCb.disabled = true;
       } else {
         resampleCb.disabled = false;
+      }
+    }
+    if (lowpassRow && enhanceCb && lowpassCb) {
+      lowpassRow.classList.toggle('hidden', !enhanceCb.checked);
+      if (!enhanceCb.checked) {
+        lowpassCb.checked = false;
       }
     }
   }

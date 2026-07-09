@@ -53,6 +53,7 @@ def parse_options(raw: str | dict[str, Any] | None) -> dict[str, Any]:
         "compand_intensity": _clamp_int(data.get("compand_intensity"), 0, 100, 50),
         "loudnorm": bool(data.get("loudnorm")),
         "enhance": bool(data.get("enhance")),
+        "enhance_lowpass": bool(data.get("enhance_lowpass")),
         "resample_441": bool(data.get("resample_441", True)),
         "output_format": out_fmt,
     }
@@ -89,6 +90,8 @@ def options_summary(opts: dict[str, Any]) -> str:
         parts.append("loudnorm")
     if opts.get("enhance"):
         parts.append("AI")
+        if opts.get("enhance_lowpass"):
+            parts.append("LP")
     if opts.get("resample_441", True):
         parts.append("44.1k")
     else:
@@ -116,6 +119,9 @@ def options_from_form(form: dict[str, str]) -> dict[str, Any]:
         "compand_intensity": _clamp_int(form.get("compand_intensity"), 0, 100, 50),
         "loudnorm": form.get("loudnorm") == "on",
         "enhance": form.get("enhance") == "on",
+        "enhance_lowpass": (
+            form.get("enhance_lowpass") == "on" and form.get("enhance") == "on"
+        ),
         "resample_441": form.get("resample_441", "on") == "on",
         "output_format": form.get("output_format", "wav"),
     }

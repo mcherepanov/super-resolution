@@ -76,7 +76,8 @@
       {% if enhance_available %}
       <fieldset class="block block--highlight">
         <legend>AI</legend>
-        <label class="check-row"><input type="checkbox" name="enhance" value="on"> С AI-улучшением</label>
+        <label class="check-row"><input type="checkbox" name="enhance" value="on" class="cue-enhance-cb"> С AI-улучшением</label>
+        <label class="check-row cue-enhance-lowpass"><input type="checkbox" name="enhance_lowpass" value="on"> Lowpass перед AI (узкополосный вход)</label>
       </fieldset>
       {% endif %}
 
@@ -124,7 +125,8 @@
       {% if enhance_available %}
       <fieldset class="block block--highlight">
         <legend>AI</legend>
-        <label class="check-row"><input type="checkbox" name="enhance" value="on"> С AI-улучшением</label>
+        <label class="check-row"><input type="checkbox" name="enhance" value="on" class="cue-enhance-cb"> С AI-улучшением</label>
+        <label class="check-row cue-enhance-lowpass"><input type="checkbox" name="enhance_lowpass" value="on"> Lowpass перед AI (узкополосный вход)</label>
       </fieldset>
       {% endif %}
 
