@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Worker: RabbitMQ → FlashSR (или mock без GPU)."""
+"""Worker: RabbitMQ → ffmpeg / FlashSR / CUE."""
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -15,15 +15,14 @@ import pika
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from audio_pipeline import run_pipeline
+from cue_split import run_cue_batch, run_cue_split
 from db import get_job, init_db, update_job
+from ffmpeg_ops import FfmpegError
 
 WEIGHTS_DIR = os.environ.get("WEIGHTS_DIR", "/app/weights")
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "sr_jobs")
-LOWPASS = os.environ.get("LOWPASS", "").lower() in ("1", "true", "yes")
 MOCK_MODE = os.environ.get("MOCK_MODE", "").lower() in ("1", "true", "yes")
-MOCK_DELAY_SEC = float(os.environ.get("MOCK_DELAY_SEC", "3"))
-OUTPUT_SR = 44_100
-TARGET_SR = 48_000
 
 
 def _rabbit_params() -> pika.ConnectionParameters:
@@ -40,13 +39,12 @@ def _rabbit_params() -> pika.ConnectionParameters:
     )
 
 
-def _cleanup_incomplete(dst: Path) -> None:
-    temp = dst.with_name(dst.stem + "_48k.wav")
-    if temp.exists() and not dst.exists():
-        temp.unlink()
-    if dst.exists() and temp.exists():
-        dst.unlink()
-        temp.unlink()
+def _cleanup_work_files(dst: Path, job_id: int) -> None:
+    for p in dst.parent.glob(f".work_{dst.stem}_{job_id}*.wav"):
+        p.unlink(missing_ok=True)
+    legacy = dst.with_name(dst.stem + "_48k.wav")
+    if legacy.exists() and not dst.exists():
+        legacy.unlink()
 
 
 def _iso_now() -> str:
@@ -54,36 +52,16 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def mock_enhance_file(src: Path, dst: Path) -> tuple[float, int, int, float]:
-    """Имитация обработки: пауза + passthrough через ffmpeg (без FlashSR)."""
-    import soundfile as sf
-
-    data, sr = sf.read(str(src), dtype="float32")
-    duration = len(data) / sr if sr > 0 else 1.0
-    delay = min(max(duration * 0.05, MOCK_DELAY_SEC * 0.5), MOCK_DELAY_SEC * 3)
-    print(f"  [MOCK] sleep {delay:.1f}s ...")
-    time.sleep(delay)
-
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    temp = dst.with_name(dst.stem + "_48k.wav")
-    sf.write(str(temp), data, TARGET_SR)
-    subprocess.run(
-        ["ffmpeg", "-i", str(temp), "-ar", str(OUTPUT_SR), str(dst), "-y"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=True,
-    )
-    temp.unlink()
-    speed = duration / delay if delay > 0 else 0
-    return duration, sr, OUTPUT_SR, speed
+def _job_options(job: dict) -> dict:
+    raw = job.get("options")
+    if not raw:
+        return {}
+    if isinstance(raw, str):
+        return json.loads(raw)
+    return dict(raw)
 
 
-def process_job(job_id: int, model: Any, device: Any) -> None:
-    job = get_job(job_id)
-    if job is None:
-        print(f"Job {job_id}: not found in DB, skip")
-        return
-
+def _process_pipeline_job(job_id: int, job: dict, model: Any, device: Any) -> None:
     src = Path(job["input_path"])
     dst = Path(job["output_path"])
 
@@ -96,35 +74,121 @@ def process_job(job_id: int, model: Any, device: Any) -> None:
         )
         return
 
-    _cleanup_incomplete(dst)
-
-    if dst.exists() and not dst.with_name(dst.stem + "_48k.wav").exists():
-        update_job(job_id, status="skipped", finished_at=_iso_now())
-        print(f"Job {job_id}: skipped (output exists)")
-        return
-
-    update_job(job_id, status="processing", started_at=_iso_now())
+    _cleanup_work_files(dst, job_id)
     tag = "[MOCK] " if MOCK_MODE else ""
     print(f"Job {job_id}: {tag}processing {src.name}")
 
+    dur, orig_sr, out_sr = run_pipeline(
+        job_id,
+        src,
+        dst,
+        job.get("options"),
+        model=model,
+        device=device,
+    )
+    update_job(
+        job_id,
+        status="done",
+        finished_at=_iso_now(),
+        duration_sec=dur,
+        input_sr=orig_sr,
+        output_sr=out_sr,
+    )
+    print(f"Job {job_id}: done ({dur:.1f}s audio)")
+
+
+def _process_cue_split_job(job_id: int, job: dict) -> None:
+    cue_path = Path(job["input_path"])
+    opts = _job_options(job)
+    split_format = opts.get("split_format", "wav")
+    audio_path = opts.get("audio_path")
+    audio = Path(audio_path) if audio_path else None
+
+    if not cue_path.is_file():
+        raise FileNotFoundError(f"cue not found: {cue_path}")
+
+    count, dur, out_dir = run_cue_split(
+        cue_path,
+        audio_path=audio,
+        split_format=split_format,
+    )
+    update_job(
+        job_id,
+        status="done",
+        finished_at=_iso_now(),
+        duration_sec=dur,
+        output_path=str(out_dir),
+        error_message=None,
+    )
+    print(f"Job {job_id}: cue split → {count} tracks in {out_dir}")
+
+
+def _process_cue_batch_job(job_id: int, job: dict, model: Any, device: Any) -> None:
+    cue_path = Path(job["input_path"])
+    opts = _job_options(job)
+    pipeline_opts = opts.get("pipeline", {})
+    output_files: list[str] = []
+
+    def _run_one(audio: Path) -> None:
+        out_fmt = pipeline_opts.get("output_format", "wav")
+        out_path = Path(job["output_path"]).parent / f"{audio.stem}.{out_fmt}"
+        run_pipeline(
+            job_id,
+            audio,
+            out_path,
+            pipeline_opts,
+            model=model,
+            device=device,
+        )
+        output_files.append(str(out_path))
+
+    ok, total, errors = run_cue_batch(cue_path, _run_one)
+    opts["output_files"] = output_files
+    msg = f"batch {ok}/{total}"
+    if errors:
+        msg += ": " + "; ".join(errors[:5])
+    status = "done" if ok == total else ("failed" if ok == 0 else "done")
+    update_job(
+        job_id,
+        status=status,
+        finished_at=_iso_now(),
+        error_message=msg if errors else None,
+        options=json.dumps(opts, ensure_ascii=False),
+    )
+    print(f"Job {job_id}: {msg}")
+
+
+def process_job(job_id: int, model: Any, device: Any) -> None:
+    job = get_job(job_id)
+    if job is None:
+        print(f"Job {job_id}: not found in DB, skip")
+        return
+
+    job_type = job.get("job_type") or "process"
+    update_job(job_id, status="processing", started_at=_iso_now())
+
     try:
-        if MOCK_MODE:
-            dur, orig_sr, out_sr, _speed = mock_enhance_file(src, dst)
+        if job_type == "cue_split":
+            _process_cue_split_job(job_id, job)
+        elif job_type == "cue_batch":
+            _process_cue_batch_job(job_id, job, model, device)
         else:
-            from super_resolve import enhance_file
-            dur, orig_sr, out_sr, _speed = enhance_file(
-                model, src, dst, device=device, lowpass=LOWPASS
-            )
+            _process_pipeline_job(job_id, job, model, device)
+    except FfmpegError as exc:
+        dst = Path(job.get("output_path", ""))
+        if dst.name:
+            _cleanup_work_files(dst, job_id)
         update_job(
             job_id,
-            status="done",
+            status="failed",
             finished_at=_iso_now(),
-            duration_sec=dur,
-            input_sr=orig_sr,
-            output_sr=out_sr,
+            error_message=str(exc)[:2000],
         )
-        print(f"Job {job_id}: done ({dur:.1f}s audio)")
+        print(f"Job {job_id}: ffmpeg failed — {exc}")
     except Exception as exc:
+        dst = Path(job.get("output_path", ""))
+        if dst.name:
+            _cleanup_work_files(dst, job_id)
         update_job(
             job_id,
             status="failed",
@@ -154,7 +218,9 @@ def main() -> None:
 
     model, dev = None, None
     if MOCK_MODE:
-        print("*** MOCK_MODE: FlashSR отключён, имитация обработки ***")
+        if not shutil.which("ffmpeg"):
+            sys.exit("MOCK_MODE: ffmpeg не найден в PATH")
+        print("*** Режим «Только обработка»: FlashSR отключён ***")
     else:
         model, dev = _load_model()
 

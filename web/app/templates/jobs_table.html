@@ -7,6 +7,7 @@
     <tr>
       <th>#</th>
       <th>Файл</th>
+      <th>Обработка</th>
       <th>Статус</th>
       <th>Создано</th>
       <th>Завершено</th>
@@ -19,20 +20,29 @@
     <tr class="status-{{ job.status }}">
       <td>{{ job.id }}</td>
       <td title="{{ job.input_path }}">{{ job.filename }}</td>
+      <td class="opts-cell" title="{{ job.options or '' }}">{{ job_options_summary(job) }}</td>
       <td><span class="chip">{{ job.status }}</span></td>
       <td>{{ job.created_at[:19] | replace("T", " ") }}</td>
       <td>{% if job.finished_at %}{{ job.finished_at[:19] | replace("T", " ") }}{% else %}—{% endif %}</td>
       <td>{% if job.duration_sec %}{{ "%.1f"|format(job.duration_sec) }}s{% else %}—{% endif %}</td>
-      <td>
+      <td class="dl-cell">
         {% if job.status == 'done' %}
-        <a href="/download/{{ job.id }}">Скачать</a>
+        <form class="download-form" method="post" action="/download/{{ job.id }}" target="_blank">
+          <button type="submit" class="btn-dl">
+            {% if job.job_type in ('cue_split', 'cue_batch') %}ZIP{% else %}Скачать{% endif %}
+          </button>
+          <label class="download-del" title="Удалить из целевой папки после скачивания">
+            <input type="checkbox" name="delete_after" value="on" checked>
+            <span>удалить</span>
+          </label>
+        </form>
         {% elif job.error_message %}
         <span class="error" title="{{ job.error_message }}">ошибка</span>
         {% endif %}
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="7" class="empty">Нет задач</td></tr>
+    <tr><td colspan="8" class="empty">Нет задач</td></tr>
     {% endfor %}
   </tbody>
 </table>

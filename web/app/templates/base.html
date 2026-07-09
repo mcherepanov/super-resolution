@@ -11,17 +11,22 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+  <div id="toast" class="toast toast--hidden" role="status" aria-live="polite">
+    <div class="toast__body" id="toast-body"></div>
+    <button type="button" class="toast__close" id="toast-close" aria-label="Закрыть">×</button>
+  </div>
   <header class="app-bar">
     <div class="app-bar__inner">
       <h1 class="app-bar__title">Super Resolution</h1>
-      <p class="subtitle">FlashSR — улучшение качества аудио</p>
-      {% if mock_mode %}
-      <p class="mock-banner">MOCK MODE — обработка имитируется, FlashSR не используется</p>
+      <p class="subtitle">Обработка аудио — ffmpeg и FlashSR</p>
+      {% if not enhance_available %}
+      <p class="mock-banner">Только обработка — AI-улучшение недоступно</p>
       {% endif %}
     </div>
   </header>
   <main class="page">
     {% block content %}{% endblock %}
   </main>
+  <script src="/static/app.js"></script>
 </body>
 </html>

@@ -1,9 +1,10 @@
-.PHONY: build up down stop start status console enhance logs clone encode decode
+.PHONY: build up down stop start status console enhance logs clone encode decode admin
 
 -include .env
 export
 
 WEB_PORT ?= 8080
+ADMINER_PORT ?= 8081
 HF_REPO  ?= laion/FlashSR_One-step_Versatile_Audio_Super-resolution
 WEIGHTS_DST ?= ./volumes/FlashSR/weights
 ENV_FILE ?= .env
@@ -27,10 +28,15 @@ endif
 start: up
 
 down:
-	docker compose --profile gpu --profile mock down
+	docker compose --profile gpu --profile mock --profile admin down
 
 stop:
 	docker compose --profile gpu --profile mock stop
+
+admin:
+	docker compose --profile admin up -d db-admin
+	@echo "БД UI: http://localhost:$(ADMINER_PORT)"
+	@echo "  SQLite: data/app.db (без логина)"
 
 status:
 	@echo "── compose ──────────────────────────────────"
@@ -40,6 +46,11 @@ status:
 	@echo "  MOCK_MODE=$(MOCK_MODE)"
 	@echo "  Web UI:    http://localhost:$(WEB_PORT)"
 	@echo "  RabbitMQ:  http://localhost:15672  (guest/guest)"
+	@if docker ps --format '{{.Names}}' 2>/dev/null | grep -q sr_db_admin; then \
+		echo "  БД UI:     http://localhost:$(ADMINER_PORT)  (sqlite-web)"; \
+	else \
+		echo "  БД UI:     make admin  (http://localhost:$(ADMINER_PORT))"; \
+	fi
 	@echo ""
 	@echo "── веса ($(WEIGHTS_DST)) ─────────────────────"
 	@if [ -f "$(WEIGHTS_DST)/student_ldm.pth" ]; then \
@@ -47,6 +58,10 @@ status:
 	else \
 		echo "  не найдены — make clone"; \
 	fi
+	@echo ""
+	@echo "── ffmpeg (mock worker) ─────────────────────"
+	@docker exec sr_worker_mock ffmpeg -version 2>/dev/null | head -1 \
+		|| echo "  worker-mock не запущен"
 
 logs:
 ifeq ($(MOCK_MODE),1)

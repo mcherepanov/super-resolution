@@ -4,24 +4,25 @@
   <h2 class="card__title">Загрузка</h2>
   <form class="upload-form"
         hx-post="/upload"
-        hx-target="#jobs-panel"
+        hx-target="#process-panel"
         hx-swap="innerHTML"
         hx-encoding="multipart/form-data"
         enctype="multipart/form-data">
     <div class="btn-row">
       <label class="file-field">
-        <input type="file" name="files" accept=".wav,.flac,.mp3,.ogg,.opus" multiple required>
+        <input type="file" name="files"
+               accept=".wav,.flac,.mp3,.ogg,.opus,.ape,.m4a,.cue" multiple required>
       </label>
-      <button type="submit" class="btn btn--filled">Загрузить и в очередь</button>
+      <button type="submit" class="btn btn--tonal">Загрузить в input/</button>
     </div>
   </form>
-  <div class="btn-row">
-    <button type="button" class="btn btn--tonal"
-            hx-post="/queue-scan"
-            hx-target="#jobs-panel"
-            hx-swap="innerHTML">
-      Обработать всё из input/
-    </button>
+</section>
+
+<section class="card">
+  <h2 class="card__title">Обработка</h2>
+  <p class="hint">Цепочка: шум → частоты → динамика → нормализация → AI (опция) → экспорт.</p>
+  <div id="process-panel">
+    {% include "process_panel.html" %}
   </div>
 </section>
 

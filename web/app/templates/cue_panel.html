@@ -1,0 +1,158 @@
+{% set valid_cues = cue_sheets | selectattr('ok') | list if cue_sheets else [] %}
+{% if valid_cues %}
+<section class="cue-section">
+  <h3 class="cue-section__title">CUE sheet</h3>
+  {% for cue in valid_cues %}
+  <form class="cue-form process-form"
+        hx-post="/process-cue"
+        hx-target="#jobs-panel"
+        hx-swap="innerHTML">
+    <input type="hidden" name="cue_name" value="{{ cue.name }}">
+
+    <p class="cue-meta">
+      <strong>{{ cue.name }}</strong>
+      → {{ cue.resolved | join(', ') }}
+      {% if cue.tracks %}<span class="cue-tracks">({{ cue.tracks }} треков)</span>{% endif %}
+    </p>
+
+    {% if cue.multi_file %}
+    <fieldset class="block">
+      <legend>Режим</legend>
+      <label class="radio-row">
+        <input type="radio" name="cue_mode" value="batch" checked>
+        Обработать все файлы пачкой (общий пайплайн)
+      </label>
+    </fieldset>
+    {% else %}
+    <fieldset class="block">
+      <legend>Режим</legend>
+      <label class="radio-row">
+        <input type="radio" name="cue_mode" value="split" checked>
+        Сплит без обработки → папка <code>input/{{ cue.resolved[0].rsplit('.', 1)[0] }}/</code>
+      </label>
+      <label class="field-inline split-format-row">
+        Формат треков
+        <select name="split_format" class="select-input">
+          <option value="wav">WAV</option>
+          <option value="flac">FLAC</option>
+          <option value="mp3">MP3</option>
+        </select>
+      </label>
+      <label class="radio-row">
+        <input type="radio" name="cue_mode" value="process_whole">
+        Обработать образ целиком (фильтры ниже)
+      </label>
+    </fieldset>
+    {% endif %}
+
+    {% if cue.multi_file %}
+    <details class="cue-pipeline-details" open>
+      <summary>Пайплайн обработки{% if not cue.multi_file %} (для «образ целиком»){% endif %}</summary>
+
+      <fieldset class="block">
+        <legend>Шумоподавление</legend>
+        <label class="radio-row"><input type="radio" name="denoise" value="" checked> Не применять</label>
+        <label class="radio-row"><input type="radio" name="denoise" value="afftdn"> afftdn</label>
+        <label class="radio-row"><input type="radio" name="denoise" value="anlmdn"> anlmdn</label>
+      </fieldset>
+
+      <fieldset class="block">
+        <legend>Частотная фильтрация</legend>
+        <label class="radio-row"><input type="radio" name="eq" value="" checked> Не применять</label>
+        <label class="radio-row"><input type="radio" name="eq" value="highpass"> Highpass</label>
+        <label class="radio-row"><input type="radio" name="eq" value="lowpass"> Lowpass</label>
+        <label class="radio-row"><input type="radio" name="eq" value="both"> Оба</label>
+        <label class="field-inline">HP Hz <input type="number" name="highpass_hz" value="80" class="num-input"></label>
+        <label class="field-inline">LP Hz <input type="number" name="lowpass_hz" value="10000" class="num-input"></label>
+      </fieldset>
+
+      <fieldset class="block">
+        <legend>Динамика / нормализация</legend>
+        <label class="check-row"><input type="checkbox" name="compand" value="on"> compand</label>
+        <input type="hidden" name="compand_intensity" value="50">
+        <label class="check-row"><input type="checkbox" name="loudnorm" value="on"> loudnorm</label>
+      </fieldset>
+
+      {% if enhance_available %}
+      <fieldset class="block block--highlight">
+        <legend>AI</legend>
+        <label class="check-row"><input type="checkbox" name="enhance" value="on"> С AI-улучшением</label>
+      </fieldset>
+      {% endif %}
+
+      <fieldset class="block">
+        <legend>Экспорт</legend>
+        <label class="check-row"><input type="checkbox" name="resample_441" value="on" checked> 44.1 kHz</label>
+        <select name="output_format" class="select-input">
+          <option value="wav">WAV</option>
+          <option value="flac">FLAC</option>
+          <option value="mp3">MP3</option>
+          <option value="m4a">M4A</option>
+        </select>
+        <input type="hidden" name="afftdn_slider" value="50">
+        <input type="hidden" name="afftdn_nf_slider" value="50">
+      </fieldset>
+    </details>
+    {% else %}
+    <details class="cue-pipeline-details">
+      <summary>Пайплайн (для «образ целиком»)</summary>
+
+      <fieldset class="block">
+        <legend>Шумоподавление</legend>
+        <label class="radio-row"><input type="radio" name="denoise" value="" checked> Не применять</label>
+        <label class="radio-row"><input type="radio" name="denoise" value="afftdn"> afftdn</label>
+        <label class="radio-row"><input type="radio" name="denoise" value="anlmdn"> anlmdn</label>
+      </fieldset>
+
+      <fieldset class="block">
+        <legend>Частотная фильтрация</legend>
+        <label class="radio-row"><input type="radio" name="eq" value="" checked> Не применять</label>
+        <label class="radio-row"><input type="radio" name="eq" value="highpass"> Highpass</label>
+        <label class="radio-row"><input type="radio" name="eq" value="lowpass"> Lowpass</label>
+        <label class="radio-row"><input type="radio" name="eq" value="both"> Оба</label>
+        <label class="field-inline">HP Hz <input type="number" name="highpass_hz" value="80" class="num-input"></label>
+        <label class="field-inline">LP Hz <input type="number" name="lowpass_hz" value="10000" class="num-input"></label>
+      </fieldset>
+
+      <fieldset class="block">
+        <legend>Динамика / нормализация</legend>
+        <label class="check-row"><input type="checkbox" name="compand" value="on"> compand</label>
+        <input type="hidden" name="compand_intensity" value="50">
+        <label class="check-row"><input type="checkbox" name="loudnorm" value="on"> loudnorm</label>
+      </fieldset>
+
+      {% if enhance_available %}
+      <fieldset class="block block--highlight">
+        <legend>AI</legend>
+        <label class="check-row"><input type="checkbox" name="enhance" value="on"> С AI-улучшением</label>
+      </fieldset>
+      {% endif %}
+
+      <fieldset class="block">
+        <legend>Экспорт</legend>
+        <label class="check-row"><input type="checkbox" name="resample_441" value="on" checked> 44.1 kHz</label>
+        <select name="output_format" class="select-input">
+          <option value="wav">WAV</option>
+          <option value="flac">FLAC</option>
+          <option value="mp3">MP3</option>
+          <option value="m4a">M4A</option>
+        </select>
+        <input type="hidden" name="afftdn_slider" value="50">
+        <input type="hidden" name="afftdn_nf_slider" value="50">
+      </fieldset>
+    </details>
+    {% endif %}
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn--filled">CUE → в очередь</button>
+    </div>
+  </form>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if cue_sheets %}
+  {% for cue in cue_sheets if not cue.ok %}
+  <p class="flash flash--error">CUE {{ cue.name }}: не найдены — {{ cue.missing | join(', ') }}</p>
+  {% endfor %}
+{% endif %}

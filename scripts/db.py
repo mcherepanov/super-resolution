@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -24,6 +25,16 @@ def get_conn() -> sqlite3.Connection:
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+    if "options" not in cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN options TEXT")
+    if "output_format" not in cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN output_format TEXT DEFAULT 'wav'")
+    if "job_type" not in cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN job_type TEXT DEFAULT 'process'")
+
+
 def init_db() -> None:
     with get_conn() as conn:
         conn.execute(
@@ -40,10 +51,14 @@ def init_db() -> None:
                 error_message TEXT,
                 duration_sec REAL,
                 input_sr INTEGER,
-                output_sr INTEGER
+                output_sr INTEGER,
+                options TEXT,
+                output_format TEXT DEFAULT 'wav',
+                job_type TEXT DEFAULT 'process'
             )
             """
         )
+        _migrate(conn)
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)"
         )
@@ -53,14 +68,26 @@ def init_db() -> None:
         conn.commit()
 
 
-def create_job(filename: str, input_path: str, output_path: str) -> int:
+def create_job(
+    filename: str,
+    input_path: str,
+    output_path: str,
+    *,
+    options: dict[str, Any] | None = None,
+    output_format: str = "wav",
+    job_type: str = "process",
+) -> int:
+    opts_json = json.dumps(options or {}, ensure_ascii=False)
     with get_conn() as conn:
         cur = conn.execute(
             """
-            INSERT INTO jobs (filename, input_path, output_path, status, created_at)
-            VALUES (?, ?, ?, 'queued', ?)
+            INSERT INTO jobs (
+                filename, input_path, output_path, status, created_at,
+                options, output_format, job_type
+            )
+            VALUES (?, ?, ?, 'queued', ?, ?, ?, ?)
             """,
-            (filename, input_path, output_path, _now()),
+            (filename, input_path, output_path, _now(), opts_json, output_format, job_type),
         )
         conn.commit()
         return int(cur.lastrowid)
@@ -93,15 +120,22 @@ def list_jobs(limit: int = 200) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
-def has_active_job(input_path: str) -> bool:
-    """Есть ли уже queued/processing для этого входа."""
+def has_active_job(input_path: str, output_path: str) -> bool:
+    """Есть ли queued/processing для этой пары вход → выход."""
     with get_conn() as conn:
         row = conn.execute(
             """
             SELECT 1 FROM jobs
-            WHERE input_path = ? AND status IN ('queued', 'processing')
+            WHERE input_path = ? AND output_path = ?
+              AND status IN ('queued', 'processing')
             LIMIT 1
             """,
-            (input_path,),
+            (input_path, output_path),
         ).fetchone()
         return row is not None
+
+
+def delete_job(job_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        conn.commit()

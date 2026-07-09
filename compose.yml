@@ -32,10 +32,10 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
       - QUEUE_NAME=${QUEUE_NAME:-sr_jobs}
       - APP_PASSWORD=${APP_PASSWORD:-}
-      - MOCK_MODE=${MOCK_MODE:-0}
+      - ENHANCE_AVAILABLE=${ENHANCE_AVAILABLE:-0}
     volumes:
       - ./web/app:/app/app
-      - ./scripts/db.py:/app/scripts/db.py
+      - ./scripts:/app/scripts
       - ./data:/app/data
       - ${INPUT_DIR:-./input}:/app/input
       - ${OUTPUT_DIR:-./output}:/app/output
@@ -99,14 +99,26 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
       - QUEUE_NAME=${QUEUE_NAME:-sr_jobs}
     volumes:
-      - ./scripts/worker.py:/app/scripts/worker.py
-      - ./scripts/db.py:/app/scripts/db.py
+      - ./scripts:/app/scripts
       - ./data:/app/data
       - ${INPUT_DIR:-./input}:/app/input
       - ${OUTPUT_DIR:-./output}:/app/output
     depends_on:
       rabbitmq:
         condition: service_healthy
+    networks:
+      - flashsr-network
+
+  db-admin:
+    profiles: ["admin"]
+    image: coleifer/sqlite-web
+    container_name: sr_db_admin
+    ports:
+      - "127.0.0.1:${ADMINER_PORT:-8081}:8080"
+    volumes:
+      - ./data:/data
+    environment:
+      SQLITE_DATABASE: /data/app.db
     networks:
       - flashsr-network
 
