@@ -51,7 +51,7 @@ Single-user. Resume по файлам в `output/` + журнал в SQLite.
 ### Mock-режим (локальный тест UI)
 - [x] `MOCK_MODE=1` в `.env`
 - [x] `worker-mock` контейнер (без GPU, без FlashSR)
-- [x] имитация: пауза + passthrough WAV 44.1 kHz
+- [x] имитация: пауза + passthrough WAV 44.1 kHz (ffmpeg)
 - [x] баннер «MOCK MODE» в Web UI
 - [x] `make clone` заблокирован при MOCK_MODE
 
