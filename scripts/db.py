@@ -11,7 +11,7 @@ from typing import Any
 
 DB_PATH = Path(os.environ.get("DATABASE_PATH", "/app/data/app.db"))
 
-STATUSES = frozenset({"queued", "processing", "done", "failed", "skipped"})
+STATUSES = frozenset({"queued", "processing", "done", "failed", "skipped", "cancelled"})
 
 
 def _now() -> str:
@@ -33,6 +33,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE jobs ADD COLUMN output_format TEXT DEFAULT 'wav'")
     if "job_type" not in cols:
         conn.execute("ALTER TABLE jobs ADD COLUMN job_type TEXT DEFAULT 'process'")
+    if "progress_pct" not in cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN progress_pct REAL")
+    if "progress_detail" not in cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN progress_detail TEXT")
+    if "cancel_requested" not in cols:
+        conn.execute("ALTER TABLE jobs ADD COLUMN cancel_requested INTEGER NOT NULL DEFAULT 0")
 
 
 def init_db() -> None:
@@ -133,6 +139,26 @@ def has_active_job(input_path: str, output_path: str) -> bool:
             (input_path, output_path),
         ).fetchone()
         return row is not None
+
+
+def try_begin_processing(job_id: int, started_at: str) -> bool:
+    """queued → processing, если не отменено. False если уже cancelled/не queued."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            UPDATE jobs
+            SET status = 'processing',
+                started_at = ?,
+                progress_pct = 0.0,
+                progress_detail = 'Старт'
+            WHERE id = ?
+              AND status = 'queued'
+              AND COALESCE(cancel_requested, 0) = 0
+            """,
+            (started_at, job_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
 
 
 def delete_job(job_id: int) -> None:

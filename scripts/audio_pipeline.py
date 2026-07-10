@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import time
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +21,9 @@ from ffmpeg_ops import (
     export_audio,
     resample_wav,
 )
+from job_cancel import check_cancel
 from process_options import parse_options
+from progress import JobProgress, make_enhance_callback
 
 LOWPASS = os.environ.get("LOWPASS", "").lower() in ("1", "true", "yes")
 MOCK_MODE = os.environ.get("MOCK_MODE", "").lower() in ("1", "true", "yes")
@@ -45,10 +46,10 @@ def _probe_duration(path: Path) -> tuple[float, int]:
     return dur, sr
 
 
-def _mock_enhance_delay(duration: float) -> None:
-    delay = min(max(duration * 0.05, MOCK_DELAY_SEC * 0.5), MOCK_DELAY_SEC * 3)
-    print(f"  [MOCK] AI sleep {delay:.1f}s ...")
-    time.sleep(delay)
+def _cleanup_temps(temps: list[Path], dst: Path) -> None:
+    for t in temps:
+        if t.exists() and t != dst:
+            t.unlink(missing_ok=True)
 
 
 def run_pipeline(
@@ -59,6 +60,7 @@ def run_pipeline(
     *,
     model: Any = None,
     device: Any = None,
+    progress: JobProgress | None = None,
 ) -> tuple[float, int, int]:
     """
     Выполнить цепочку. Возвращает (duration_sec, input_sr, output_sr).
@@ -72,84 +74,141 @@ def run_pipeline(
     current = _step_path(base, "48k")
     temps.append(current)
 
-    decode_to_wav_48k(src, current)
-    step_idx = 0
+    try:
+        check_cancel()
+        if progress is not None:
+            progress.set_step_progress(0.0, "Декодирование")
+        decode_to_wav_48k(src, current)
+        if progress is not None:
+            progress.complete_step("Декодирование")
 
-    denoise = opts.get("denoise")
-    if denoise == "afftdn":
-        nxt = _step_path(base, f"f{step_idx}")
-        step_idx += 1
-        af = afftdn_filter(opts["afftdn_nr"], opts["afftdn_nf"])
-        apply_af_chain(current, nxt, af)
-        temps.append(nxt)
-        current = nxt
-    elif denoise == "anlmdn":
-        nxt = _step_path(base, f"f{step_idx}")
-        step_idx += 1
-        apply_af_chain(current, nxt, "anlmdn")
-        temps.append(nxt)
-        current = nxt
+        step_idx = 0
 
-    eq = opts.get("eq")
-    if eq:
-        nxt = _step_path(base, f"f{step_idx}")
-        step_idx += 1
-        af = build_eq_filter(eq, opts["highpass_hz"], opts["lowpass_hz"])
-        apply_af_chain(current, nxt, af)
-        temps.append(nxt)
-        current = nxt
+        denoise = opts.get("denoise")
+        if denoise == "afftdn":
+            check_cancel()
+            if progress is not None:
+                progress.set_step_progress(0.0, "Фильтр: afftdn")
+            nxt = _step_path(base, f"f{step_idx}")
+            step_idx += 1
+            af = afftdn_filter(opts["afftdn_nr"], opts["afftdn_nf"])
+            apply_af_chain(current, nxt, af)
+            temps.append(nxt)
+            current = nxt
+            if progress is not None:
+                progress.complete_step("Фильтр: afftdn")
+        elif denoise == "anlmdn":
+            check_cancel()
+            if progress is not None:
+                progress.set_step_progress(0.0, "Фильтр: anlmdn")
+            nxt = _step_path(base, f"f{step_idx}")
+            step_idx += 1
+            apply_af_chain(current, nxt, "anlmdn")
+            temps.append(nxt)
+            current = nxt
+            if progress is not None:
+                progress.complete_step("Фильтр: anlmdn")
 
-    if opts.get("compand"):
-        nxt = _step_path(base, f"f{step_idx}")
-        step_idx += 1
-        af = compand_filter(opts["compand_intensity"])
-        apply_af_chain(current, nxt, af)
-        temps.append(nxt)
-        current = nxt
+        eq = opts.get("eq")
+        if eq:
+            check_cancel()
+            if progress is not None:
+                progress.set_step_progress(0.0, "Фильтр: EQ")
+            nxt = _step_path(base, f"f{step_idx}")
+            step_idx += 1
+            af = build_eq_filter(eq, opts["highpass_hz"], opts["lowpass_hz"])
+            apply_af_chain(current, nxt, af)
+            temps.append(nxt)
+            current = nxt
+            if progress is not None:
+                progress.complete_step("Фильтр: EQ")
 
-    if opts.get("loudnorm"):
-        nxt = _step_path(base, f"f{step_idx}")
-        step_idx += 1
-        apply_af_chain(current, nxt, "loudnorm")
-        temps.append(nxt)
-        current = nxt
+        if opts.get("compand"):
+            check_cancel()
+            if progress is not None:
+                progress.set_step_progress(0.0, "Фильтр: compand")
+            nxt = _step_path(base, f"f{step_idx}")
+            step_idx += 1
+            af = compand_filter(opts["compand_intensity"])
+            apply_af_chain(current, nxt, af)
+            temps.append(nxt)
+            current = nxt
+            if progress is not None:
+                progress.complete_step("Фильтр: compand")
 
-    out_sr = TARGET_SR
-    pcm_for_export = current
+        if opts.get("loudnorm"):
+            check_cancel()
+            if progress is not None:
+                progress.set_step_progress(0.0, "Фильтр: loudnorm")
+            nxt = _step_path(base, f"f{step_idx}")
+            step_idx += 1
+            apply_af_chain(current, nxt, "loudnorm")
+            temps.append(nxt)
+            current = nxt
+            if progress is not None:
+                progress.complete_step("Фильтр: loudnorm")
 
-    if opts.get("enhance"):
-        if model is None or device is None:
-            raise RuntimeError("enhance requested but model not loaded")
-        from super_resolve import enhance_file
+        out_sr = TARGET_SR
+        pcm_for_export = current
 
-        enhanced_dst = _step_path(base, "enhanced")
-        temps.append(enhanced_dst)
-        dur_hint, _ = _probe_duration(current)
-        if MOCK_MODE:
-            _mock_enhance_delay(dur_hint)
-        enhance_file(
-            model, current, enhanced_dst,
-            device=device,
-            lowpass=bool(opts.get("enhance_lowpass", LOWPASS)),
-        )
-        pcm_for_export = enhanced_dst
-        out_sr = OUTPUT_SR
-    elif opts.get("resample_441", True):
-        resampled = _step_path(base, "441")
-        temps.append(resampled)
-        resample_wav(current, resampled, OUTPUT_SR)
-        pcm_for_export = resampled
-        out_sr = OUTPUT_SR
+        if opts.get("enhance"):
+            if model is None or device is None:
+                raise RuntimeError("enhance requested but model not loaded")
+            from super_resolve import enhance_file
 
-    out_fmt = opts.get("output_format", "wav")
-    if out_fmt == "wav":
-        shutil.move(str(pcm_for_export), str(dst))
-    else:
-        export_audio(pcm_for_export, dst, out_fmt)
+            enhanced_dst = _step_path(base, "enhanced")
+            temps.append(enhanced_dst)
+            dur_hint, _ = _probe_duration(current)
+            check_cancel()
+            if progress is not None:
+                progress.set_step_progress(0.0, "AI")
+            if MOCK_MODE:
+                if progress is not None:
+                    delay = min(max(dur_hint * 0.05, MOCK_DELAY_SEC * 0.5), MOCK_DELAY_SEC * 3)
+                    progress.mock_enhance_sleep(dur_hint, delay)
+                else:
+                    from job_cancel import sleep_cancellable
+                    delay = min(max(dur_hint * 0.05, MOCK_DELAY_SEC * 0.5), MOCK_DELAY_SEC * 3)
+                    sleep_cancellable(delay)
+            else:
+                enhance_file(
+                    model, current, enhanced_dst,
+                    device=device,
+                    lowpass=bool(opts.get("enhance_lowpass", LOWPASS)),
+                    on_progress=make_enhance_callback(progress),
+                )
+            if progress is not None:
+                progress.complete_step("AI · готово")
+            pcm_for_export = enhanced_dst
+            out_sr = OUTPUT_SR
+        elif opts.get("resample_441", True):
+            check_cancel()
+            if progress is not None:
+                progress.set_step_progress(0.0, "Ресемпл 44.1 kHz")
+            resampled = _step_path(base, "441")
+            temps.append(resampled)
+            resample_wav(current, resampled, OUTPUT_SR)
+            pcm_for_export = resampled
+            out_sr = OUTPUT_SR
+            if progress is not None:
+                progress.complete_step("Ресемпл 44.1 kHz")
 
-    duration, input_sr = _probe_duration(src)
-    for t in temps:
-        if t.exists() and t != dst:
-            t.unlink(missing_ok=True)
+        out_fmt = opts.get("output_format", "wav")
+        check_cancel()
+        if progress is not None:
+            progress.set_step_progress(0.0, f"Экспорт {out_fmt}")
+        if out_fmt == "wav":
+            shutil.move(str(pcm_for_export), str(dst))
+        else:
+            export_audio(pcm_for_export, dst, out_fmt)
+        if progress is not None:
+            progress.complete_step(f"Экспорт {out_fmt}")
 
-    return duration, input_sr, out_sr
+        duration, input_sr = _probe_duration(src)
+        _cleanup_temps(temps, dst)
+        return duration, input_sr, out_sr
+    except Exception:
+        if dst.exists():
+            dst.unlink(missing_ok=True)
+        _cleanup_temps(temps, dst)
+        raise

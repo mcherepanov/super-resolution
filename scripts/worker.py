@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import json
 import os
+
+os.environ.setdefault("TQDM_DISABLE", "1")
+
 import shutil
 import sys
 import time
@@ -17,8 +20,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from audio_pipeline import run_pipeline
 from cue_split import run_cue_batch, run_cue_split
-from db import get_job, init_db, update_job
+from db import get_job, init_db, try_begin_processing, update_job
 from ffmpeg_ops import FfmpegError
+from job_cancel import JobCancelled, job_context
+from progress import (
+    ProgressReporter,
+    build_job_progress,
+    clear_job_progress_state,
+)
 
 WEIGHTS_DIR = os.environ.get("WEIGHTS_DIR", "/app/weights")
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "sr_jobs")
@@ -61,12 +70,45 @@ def _job_options(job: dict) -> dict:
     return dict(raw)
 
 
+def _cleanup_partial_outputs(paths: list[Path], job_id: int) -> None:
+    for path in paths:
+        if path.exists():
+            path.unlink(missing_ok=True)
+        if path.name:
+            _cleanup_work_files(path, job_id)
+
+
+def _finish_job(job_id: int, **fields: Any) -> None:
+    fields.setdefault("progress_pct", None)
+    fields.setdefault("progress_detail", None)
+    update_job(job_id, **fields)
+    clear_job_progress_state(job_id)
+
+
+def _cancel_job(job_id: int, job: dict, *, partial_outputs: list[Path] | None = None) -> None:
+    dst = Path(job.get("output_path", ""))
+    if dst.name:
+        _cleanup_work_files(dst, job_id)
+        if dst.exists():
+            dst.unlink(missing_ok=True)
+    if partial_outputs:
+        _cleanup_partial_outputs(partial_outputs, job_id)
+    _finish_job(
+        job_id,
+        status="cancelled",
+        finished_at=_iso_now(),
+        cancel_requested=1,
+        error_message="прервано пользователем",
+    )
+    print(f"Job {job_id}: cancelled")
+
+
 def _process_pipeline_job(job_id: int, job: dict, model: Any, device: Any) -> None:
     src = Path(job["input_path"])
     dst = Path(job["output_path"])
 
     if not src.exists():
-        update_job(
+        _finish_job(
             job_id,
             status="failed",
             finished_at=_iso_now(),
@@ -78,6 +120,10 @@ def _process_pipeline_job(job_id: int, job: dict, model: Any, device: Any) -> No
     tag = "[MOCK] " if MOCK_MODE else ""
     print(f"Job {job_id}: {tag}processing {src.name}")
 
+    opts = _job_options(job)
+    reporter = ProgressReporter(job_id, prefix=f"Job {job_id} ")
+    progress = build_job_progress(reporter, opts)
+
     dur, orig_sr, out_sr = run_pipeline(
         job_id,
         src,
@@ -85,8 +131,10 @@ def _process_pipeline_job(job_id: int, job: dict, model: Any, device: Any) -> No
         job.get("options"),
         model=model,
         device=device,
+        progress=progress,
     )
-    update_job(
+    reporter.finish_line()
+    _finish_job(
         job_id,
         status="done",
         finished_at=_iso_now(),
@@ -107,12 +155,16 @@ def _process_cue_split_job(job_id: int, job: dict) -> None:
     if not cue_path.is_file():
         raise FileNotFoundError(f"cue not found: {cue_path}")
 
+    reporter = ProgressReporter(job_id, prefix=f"Job {job_id} ")
+    reporter.report(5.0, "CUE · нарезка")
+
     count, dur, out_dir = run_cue_split(
         cue_path,
         audio_path=audio,
         split_format=split_format,
     )
-    update_job(
+    reporter.finish_line()
+    _finish_job(
         job_id,
         status="done",
         finished_at=_iso_now(),
@@ -128,10 +180,19 @@ def _process_cue_batch_job(job_id: int, job: dict, model: Any, device: Any) -> N
     opts = _job_options(job)
     pipeline_opts = opts.get("pipeline", {})
     output_files: list[str] = []
+    batch_outputs: list[Path] = []
 
-    def _run_one(audio: Path) -> None:
+    from cue_sheet import parse_cue
+
+    sheet = parse_cue(cue_path, input_dir=cue_path.parent)
+    total = len(sheet.files)
+    reporter = ProgressReporter(job_id, prefix=f"Job {job_id} ")
+    progress = build_job_progress(reporter, pipeline_opts)
+
+    def _run_one(audio: Path, track_index: int) -> None:
         out_fmt = pipeline_opts.get("output_format", "wav")
         out_path = Path(job["output_path"]).parent / f"{audio.stem}.{out_fmt}"
+        progress.set_batch(track_index, total)
         run_pipeline(
             job_id,
             audio,
@@ -139,16 +200,23 @@ def _process_cue_batch_job(job_id: int, job: dict, model: Any, device: Any) -> N
             pipeline_opts,
             model=model,
             device=device,
+            progress=progress,
         )
+        batch_outputs.append(out_path)
         output_files.append(str(out_path))
 
-    ok, total, errors = run_cue_batch(cue_path, _run_one)
+    try:
+        ok, total, errors = run_cue_batch(cue_path, _run_one)
+    except JobCancelled:
+        _cancel_job(job_id, job, partial_outputs=batch_outputs)
+        return
+    reporter.finish_line()
     opts["output_files"] = output_files
     msg = f"batch {ok}/{total}"
     if errors:
         msg += ": " + "; ".join(errors[:5])
     status = "done" if ok == total else ("failed" if ok == 0 else "done")
-    update_job(
+    _finish_job(
         job_id,
         status=status,
         finished_at=_iso_now(),
@@ -164,38 +232,55 @@ def process_job(job_id: int, model: Any, device: Any) -> None:
         print(f"Job {job_id}: not found in DB, skip")
         return
 
-    job_type = job.get("job_type") or "process"
-    update_job(job_id, status="processing", started_at=_iso_now())
+    if job.get("status") == "cancelled":
+        print(f"Job {job_id}: already cancelled, skip")
+        return
 
-    try:
-        if job_type == "cue_split":
-            _process_cue_split_job(job_id, job)
-        elif job_type == "cue_batch":
-            _process_cue_batch_job(job_id, job, model, device)
-        else:
-            _process_pipeline_job(job_id, job, model, device)
-    except FfmpegError as exc:
-        dst = Path(job.get("output_path", ""))
-        if dst.name:
-            _cleanup_work_files(dst, job_id)
-        update_job(
-            job_id,
-            status="failed",
-            finished_at=_iso_now(),
-            error_message=str(exc)[:2000],
-        )
-        print(f"Job {job_id}: ffmpeg failed — {exc}")
-    except Exception as exc:
-        dst = Path(job.get("output_path", ""))
-        if dst.name:
-            _cleanup_work_files(dst, job_id)
-        update_job(
-            job_id,
-            status="failed",
-            finished_at=_iso_now(),
-            error_message=str(exc)[:2000],
-        )
-        print(f"Job {job_id}: failed — {exc}")
+    job_type = job.get("job_type") or "process"
+
+    with job_context(job_id):
+        if job.get("status") == "queued":
+            if not try_begin_processing(job_id, _iso_now()):
+                print(f"Job {job_id}: not started (cancelled or taken)")
+                return
+            job = get_job(job_id) or job
+
+        try:
+            from job_cancel import is_cancel_requested
+            if is_cancel_requested(job_id):
+                _cancel_job(job_id, job)
+                return
+            if job_type == "cue_split":
+                _process_cue_split_job(job_id, job)
+            elif job_type == "cue_batch":
+                _process_cue_batch_job(job_id, job, model, device)
+            else:
+                _process_pipeline_job(job_id, job, model, device)
+        except JobCancelled:
+            fresh = get_job(job_id) or job
+            _cancel_job(job_id, fresh)
+        except FfmpegError as exc:
+            dst = Path(job.get("output_path", ""))
+            if dst.name:
+                _cleanup_work_files(dst, job_id)
+            _finish_job(
+                job_id,
+                status="failed",
+                finished_at=_iso_now(),
+                error_message=str(exc)[:2000],
+            )
+            print(f"Job {job_id}: ffmpeg failed — {exc}")
+        except Exception as exc:
+            dst = Path(job.get("output_path", ""))
+            if dst.name:
+                _cleanup_work_files(dst, job_id)
+            _finish_job(
+                job_id,
+                status="failed",
+                finished_at=_iso_now(),
+                error_message=str(exc)[:2000],
+            )
+            print(f"Job {job_id}: failed — {exc}")
 
 
 def _load_model() -> tuple[Any, Any]:

@@ -35,6 +35,8 @@
   --status-failed-fg: var(--md-sys-color-on-error-container);
   --status-skipped-bg: #f5f5f5;
   --status-skipped-fg: #616161;
+  --status-cancelled-bg: #ffccbc;
+  --status-cancelled-fg: #bf360c;
 }
 
 * { box-sizing: border-box; }
@@ -260,6 +262,76 @@ tbody tr:hover {
 .status-queued .chip { background: var(--status-queued-bg); color: var(--status-queued-fg); }
 .status-failed .chip { background: var(--status-failed-bg); color: var(--status-failed-fg); }
 .status-skipped .chip { background: var(--status-skipped-bg); color: var(--status-skipped-fg); }
+.status-cancelled .chip { background: var(--status-cancelled-bg); color: var(--status-cancelled-fg); }
+
+.btn-cancel {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid #e57373;
+  border-radius: var(--md-shape-corner-full);
+  background: #ffebee;
+  color: #c62828;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-cancel:hover {
+  background: #ffcdd2;
+}
+
+.cancel-form {
+  margin: 0;
+}
+
+.status-cell {
+  min-width: 10rem;
+}
+
+.job-progress {
+  margin-top: 0.35rem;
+}
+
+.job-progress__bar {
+  display: block;
+  width: 100%;
+  max-width: 14rem;
+  height: 0.45rem;
+  border: none;
+  border-radius: var(--md-shape-corner-full);
+  overflow: hidden;
+  background: #e0e0e0;
+}
+
+.job-progress__bar::-webkit-progress-bar {
+  background: #e0e0e0;
+  border-radius: var(--md-shape-corner-full);
+}
+
+.job-progress__bar::-webkit-progress-value {
+  background: #f9a825;
+  border-radius: var(--md-shape-corner-full);
+}
+
+.job-progress__bar::-moz-progress-bar {
+  background: #f9a825;
+  border-radius: var(--md-shape-corner-full);
+}
+
+.job-progress__text {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.6875rem;
+  color: var(--md-sys-color-on-surface-variant);
+  line-height: 1.3;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-progress__text--wait {
+  font-style: italic;
+}
 
 a {
   color: #0277bd;

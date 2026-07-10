@@ -31,6 +31,7 @@ from db import (  # noqa: E402
     init_db,
     list_jobs,
 )
+from job_cancel import request_cancel  # noqa: E402
 from download_utils import (  # noqa: E402
     DownloadError,
     cleanup_after_download,
@@ -295,6 +296,20 @@ def jobs_partial(request: Request, _: None = Depends(verify_auth)) -> HTMLRespon
     return templates.TemplateResponse(
         "jobs_table.html",
         {"request": request, "jobs": list_jobs()},
+    )
+
+
+@app.post("/jobs/{job_id}/cancel", response_class=HTMLResponse)
+def cancel_job(
+    request: Request,
+    job_id: int,
+    _: None = Depends(verify_auth),
+) -> HTMLResponse:
+    ok, msg = request_cancel(job_id)
+    flash = msg if ok else f"Не удалось прервать: {msg}"
+    return templates.TemplateResponse(
+        "jobs_table.html",
+        {"request": request, "jobs": list_jobs(), "flash": flash},
     )
 
 

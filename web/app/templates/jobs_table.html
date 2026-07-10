@@ -21,12 +21,34 @@
       <td>{{ job.id }}</td>
       <td title="{{ job.input_path }}">{{ job.filename }}</td>
       <td class="opts-cell" title="{{ job.options or '' }}">{{ job_options_summary(job) }}</td>
-      <td><span class="chip">{{ job.status }}</span></td>
+      <td class="status-cell">
+        <span class="chip">{{ job.status }}</span>
+        {% if job.status == 'processing' %}
+        <div class="job-progress">
+          {% if job.progress_pct is not none %}
+          <progress class="job-progress__bar" value="{{ job.progress_pct }}" max="100"></progress>
+          <span class="job-progress__text">{{ job.progress_detail or '…' }}</span>
+          {% else %}
+          <span class="job-progress__text job-progress__text--wait">обработка…</span>
+          {% endif %}
+        </div>
+        {% elif job.status == 'queued' %}
+        <span class="job-progress__text job-progress__text--wait">в очереди</span>
+        {% endif %}
+      </td>
       <td>{{ job.created_at[:19] | replace("T", " ") }}</td>
       <td>{% if job.finished_at %}{{ job.finished_at[:19] | replace("T", " ") }}{% else %}—{% endif %}</td>
       <td>{% if job.duration_sec %}{{ "%.1f"|format(job.duration_sec) }}s{% else %}—{% endif %}</td>
       <td class="dl-cell">
-        {% if job.status == 'done' %}
+        {% if job.status in ('queued', 'processing') %}
+        <form class="cancel-form"
+              hx-post="/jobs/{{ job.id }}/cancel"
+              hx-target="#jobs-panel"
+              hx-swap="innerHTML"
+              hx-confirm="Прервать задачу #{{ job.id }}?">
+          <button type="submit" class="btn-cancel">Прервать</button>
+        </form>
+        {% elif job.status == 'done' %}
         <form class="download-form" method="post" action="/download/{{ job.id }}" target="_blank">
           <button type="submit" class="btn-dl">
             {% if job.job_type in ('cue_split', 'cue_batch') %}ZIP{% else %}Скачать{% endif %}
@@ -37,7 +59,9 @@
           </label>
         </form>
         {% elif job.error_message %}
-        <span class="error" title="{{ job.error_message }}">ошибка</span>
+        <span class="error" title="{{ job.error_message }}">
+          {% if job.status == 'cancelled' %}прервано{% else %}ошибка{% endif %}
+        </span>
         {% endif %}
       </td>
     </tr>

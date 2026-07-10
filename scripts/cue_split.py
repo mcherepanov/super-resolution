@@ -67,6 +67,8 @@ def split_file_by_cue(
     out_dir: Path,
     fmt: str,
 ) -> tuple[int, float]:
+    from job_cancel import JobCancelled, check_cancel
+
     if entry.resolved is None:
         raise FfmpegError(f"audio not found: {entry.cue_name}")
     if not entry.tracks:
@@ -78,16 +80,24 @@ def split_file_by_cue(
 
     written = 0
     audio_dur = 0.0
-    for track in entry.tracks:
-        start = track.index01_sec
-        end = track.end_sec if track.end_sec is not None else total_dur
-        if end <= start:
-            continue
-        name = safe_track_name(track.number, track.title, track.performer)
-        dst = out_dir / f"{name}.{fmt}"
-        _extract_segment(src, dst, start, end, fmt)
-        written += 1
-        audio_dur += end - start
+    written_paths: list[Path] = []
+    try:
+        for track in entry.tracks:
+            check_cancel()
+            start = track.index01_sec
+            end = track.end_sec if track.end_sec is not None else total_dur
+            if end <= start:
+                continue
+            name = safe_track_name(track.number, track.title, track.performer)
+            dst = out_dir / f"{name}.{fmt}"
+            _extract_segment(src, dst, start, end, fmt)
+            written_paths.append(dst)
+            written += 1
+            audio_dur += end - start
+    except JobCancelled:
+        for path in written_paths:
+            path.unlink(missing_ok=True)
+        raise
 
     return written, audio_dur
 
@@ -129,19 +139,25 @@ def run_cue_batch(
     cue_path: Path,
     process_fn,
 ) -> tuple[int, int, list[str]]:
-    """process_fn(audio_path) -> None; ошибки собираются, остальные файлы продолжают."""
+    """process_fn(audio_path, track_index) -> None; ошибки собираются."""
+    from job_cancel import JobCancelled
+
     sheet = parse_cue(cue_path, input_dir=cue_path.parent)
     ok_count = 0
     errors: list[str] = []
     total = len(sheet.files)
+    track_index = 0
 
     for entry in sheet.files:
         if entry.resolved is None:
             errors.append(f"{entry.cue_name}: not found")
             continue
+        track_index += 1
         try:
-            process_fn(entry.resolved)
+            process_fn(entry.resolved, track_index)
             ok_count += 1
+        except JobCancelled:
+            raise
         except Exception as exc:
             errors.append(f"{entry.resolved.name}: {exc}")
 

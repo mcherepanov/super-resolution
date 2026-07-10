@@ -13,6 +13,7 @@ import math
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,8 @@ warnings.filterwarnings("ignore")
 
 from FlashSR.FlashSR import FlashSR
 
+from progress import ProgressReporter
+
 # ---- constants ----------------------------------------------------------------
 
 TARGET_SR = 48_000
@@ -34,6 +37,8 @@ OVERLAP = 24_000
 HOP = WINDOW_LEN - OVERLAP
 
 AUDIO_EXTENSIONS = {".wav", ".flac", ".mp3", ".ogg", ".opus"}
+
+ChunkProgressFn = Callable[[int, int, str, float], None]
 
 
 # ---- helpers ------------------------------------------------------------------
@@ -59,10 +64,46 @@ def _pad_to(tensor: torch.Tensor, n: int) -> torch.Tensor:
     return torch.nn.functional.pad(tensor, (0, deficit))
 
 @contextlib.contextmanager
-def _suppress_stdout():
+def suppress_model_io():
+    """Глушит stdout/stderr на время inference (vendor tqdm)."""
     with open(os.devnull, "w") as devnull:
-        with contextlib.redirect_stdout(devnull):
+        old_out, old_err = sys.stdout, sys.stderr
+        try:
+            sys.stdout = devnull
+            sys.stderr = devnull
             yield
+        finally:
+            sys.stdout = old_out
+            sys.stderr = old_err
+
+
+def _chunk_total(n_samples: int) -> int:
+    if n_samples <= WINDOW_LEN:
+        return 1
+    return math.ceil(n_samples / HOP)
+
+
+def _report_chunk(
+    on_progress: ChunkProgressFn | None,
+    *,
+    channel: str,
+    current: int,
+    total: int,
+    elapsed: float,
+    console: ProgressReporter | None,
+) -> None:
+    if on_progress is not None:
+        on_progress(current, total, channel, elapsed)
+        return
+    if console is None:
+        return
+    pct = current / total * 100.0 if total else 0.0
+    eta_str = ""
+    if current > 1 and elapsed > 0:
+        rate = (current - 1) / elapsed
+        if rate > 0:
+            eta_str = f" · ETA {((total - current) / rate):.0f}s"
+    console.report(pct, f"AI · {channel} · {current}/{total}{eta_str}")
 
 
 # ---- core ---------------------------------------------------------------------
@@ -84,27 +125,40 @@ def enhance(
     *,
     device: torch.device,
     lowpass: bool = False,
+    channel: str = "M",
+    on_progress: ChunkProgressFn | None = None,
+    console: ProgressReporter | None = None,
 ) -> np.ndarray:
     if waveform.ndim == 2 and waveform.shape[1] == 2:
-        print("  Processing L channel ...")
         left = waveform[:, 0]
         right = waveform[:, 1]
-        left_enh = enhance(model, left, device=device, lowpass=lowpass)
-        print("  Processing R channel ...")
-        right_enh = enhance(model, right, device=device, lowpass=lowpass)
+        left_enh = enhance(
+            model, left, device=device, lowpass=lowpass,
+            channel="L", on_progress=on_progress, console=console,
+        )
+        right_enh = enhance(
+            model, right, device=device, lowpass=lowpass,
+            channel="R", on_progress=on_progress, console=console,
+        )
+        if console is not None:
+            console.finish_line()
         return np.stack([left_enh, right_enh], axis=1)
 
     signal = torch.from_numpy(waveform).unsqueeze(0)
     n_samples = signal.shape[-1]
+    total_chunks = _chunk_total(n_samples)
 
     if n_samples <= WINDOW_LEN:
         chunk = _pad_to(signal, WINDOW_LEN).to(device)
-        with _suppress_stdout():
+        from job_cancel import check_cancel
+        check_cancel()
+        with suppress_model_io():
             out = model(chunk, lowpass_input=lowpass)
+        _report_chunk(
+            on_progress, channel=channel, current=1, total=1,
+            elapsed=0.0, console=console,
+        )
         return out[0, :n_samples].cpu().numpy()
-
-    total_chunks = math.ceil(n_samples / HOP)
-    bar_len = 40
 
     fade_in, fade_out = _build_crossfade(OVERLAP)
     accumulator = torch.zeros(n_samples)
@@ -119,7 +173,7 @@ def enhance(
         segment = signal[:, offset:end]
         segment = _pad_to(segment, WINDOW_LEN).to(device)
 
-        with _suppress_stdout():
+        with suppress_model_io():
             enhanced_seg = model(segment, lowpass_input=lowpass).cpu().squeeze(0)
 
         seg_len = min(WINDOW_LEN, n_samples - offset)
@@ -142,20 +196,19 @@ def enhance(
         chunk_count += 1
 
         elapsed = time.monotonic() - start_time
-        percent = chunk_count / total_chunks * 100
-        filled = int(bar_len * chunk_count / total_chunks)
-        bar = "█" * filled + "░" * (bar_len - filled)
+        from job_cancel import check_cancel
+        check_cancel()
+        _report_chunk(
+            on_progress,
+            channel=channel,
+            current=chunk_count,
+            total=total_chunks,
+            elapsed=elapsed,
+            console=console,
+        )
 
-        if chunk_count > 1:
-            rate = (chunk_count - 1) / elapsed
-            eta = (total_chunks - chunk_count) / rate if rate > 0 else 0
-            eta_str = f" ETA: {eta:.0f}s"
-        else:
-            eta_str = " ETA: --"
-
-        print(f"\r  Progress: [{bar}] {percent:.1f}% ({chunk_count}/{total_chunks}) | Time: {elapsed:.0f}s{eta_str}", end="", flush=True)
-
-    print("  Done!          ")
+    if console is not None:
+        console.finish_line()
     norm.clamp_(min=1e-8)
     return (accumulator / norm).numpy()
 
@@ -169,14 +222,22 @@ def enhance_file(
     *,
     device: torch.device,
     lowpass: bool = False,
+    on_progress: ChunkProgressFn | None = None,
+    console: ProgressReporter | None = None,
 ) -> tuple[float, int, int, float]:
     """Returns (audio_duration, original_sample_rate, output_sample_rate, speed)."""
     raw, sr = _load_audio(src)
     audio = _resample_if_needed(raw, sr)
     audio_duration = len(audio) / TARGET_SR
 
+    if console is None and on_progress is None:
+        console = ProgressReporter()
+
     start_time = time.monotonic()
-    result = enhance(model, audio, device=device, lowpass=lowpass)
+    result = enhance(
+        model, audio, device=device, lowpass=lowpass,
+        on_progress=on_progress, console=console,
+    )
     elapsed = time.monotonic() - start_time
 
     dst = Path(dst)
@@ -185,7 +246,9 @@ def enhance_file(
     temp_dst = dst.with_name(dst.stem + "_48k.wav")
     sf.write(str(temp_dst), result, TARGET_SR)
 
-    print(f"  Resampling: 48 kHz -> 44.1 kHz ...", end="", flush=True)
+    from job_cancel import check_cancel
+    check_cancel()
+    print("  Resampling: 48 kHz -> 44.1 kHz ...", end="", flush=True)
     subprocess.run(
         ["ffmpeg", "-i", str(temp_dst), "-ar", str(OUTPUT_SR), str(dst), "-y"],
         stdout=subprocess.DEVNULL,
@@ -264,7 +327,9 @@ def cli() -> None:
         print(f"\n[{idx}/{len(pairs)}] Processing: {src.name}")
         print("-" * 50)
 
-        dur, orig_sr, out_sr, speed = enhance_file(model, src, dst, device=dev, lowpass=args.lowpass)
+        dur, orig_sr, out_sr, speed = enhance_file(
+            model, src, dst, device=dev, lowpass=args.lowpass,
+        )
         total_dur += dur
 
         print(f"[{idx}/{len(pairs)}] Done: {dst.name} ({dur:.1f}s, {speed:.2f}x)")

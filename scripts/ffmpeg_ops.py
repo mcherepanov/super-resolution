@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import time
 from pathlib import Path
 
 TARGET_SR = 48_000
@@ -19,9 +20,30 @@ class FfmpegError(RuntimeError):
 
 
 def _run(cmd: list[str]) -> None:
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    from job_cancel import JobCancelled, check_cancel
+
+    try:
+        check_cancel()
+    except JobCancelled:
+        raise
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        while proc.poll() is None:
+            check_cancel()
+            time.sleep(0.25)
+        stdout, stderr = proc.communicate(timeout=1)
+    except JobCancelled:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        raise
+
     if proc.returncode != 0:
-        tail = (proc.stderr or proc.stdout or "")[-2000:]
+        tail = (stderr or stdout or "")[-2000:]
         raise FfmpegError(tail.strip() or f"ffmpeg failed: {' '.join(cmd)}")
 
 
