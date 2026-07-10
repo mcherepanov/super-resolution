@@ -45,6 +45,8 @@ status:
 	@echo "── режим ────────────────────────────────────"
 	@echo "  MOCK_MODE=$(MOCK_MODE)"
 	@echo "  Web UI:    http://localhost:$(WEB_PORT)"
+	@lan_ip=$$(hostname -I 2>/dev/null | awk '{print $$1}'); \
+	if [ -n "$$lan_ip" ]; then echo "  LAN:       http://$$lan_ip:$(WEB_PORT)"; fi
 	@echo "  RabbitMQ:  http://localhost:15672  (guest/guest)"
 	@if docker ps --format '{{.Names}}' 2>/dev/null | grep -q sr_db_admin; then \
 		echo "  БД UI:     http://localhost:$(ADMINER_PORT)  (sqlite-web)"; \
