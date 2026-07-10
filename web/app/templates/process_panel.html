@@ -17,10 +17,20 @@
     {% if input_files %}
     <div class="file-checklist">
       {% for f in input_files %}
-      <label class="check-row">
-        <input type="checkbox" name="filenames" value="{{ f.name }}">
-        <span>{{ f.name }}</span>
-      </label>
+      <div class="file-checklist-row">
+        <label class="check-row">
+          <input type="checkbox" name="filenames" value="{{ f.name }}">
+          <span class="file-checklist__name">{{ f.name }}</span>
+        </label>
+        <form class="file-delete-form"
+              hx-post="/input/delete"
+              hx-target="#process-panel"
+              hx-swap="innerHTML"
+              hx-confirm="Удалить {{ f.name }} из input/?">
+          <input type="hidden" name="filename" value="{{ f.name }}">
+          <button type="submit" class="btn-delete-file">Удалить</button>
+        </form>
+      </div>
       {% endfor %}
     </div>
     {% else %}
@@ -97,21 +107,7 @@
     {% endif %}
   </fieldset>
 
-  <fieldset class="block">
-    <legend>Экспорт</legend>
-    <label class="check-row">
-      <input type="checkbox" name="resample_441" value="on" id="resample-cb" checked>
-      <span>Преобразовать в 44.1 kHz</span>
-    </label>
-    <label class="field-inline">Формат выхода
-      <select name="output_format" class="select-input">
-        <option value="wav">WAV</option>
-        <option value="flac">FLAC</option>
-        <option value="mp3">MP3</option>
-        <option value="m4a">M4A</option>
-      </select>
-    </label>
-  </fieldset>
+  {% include "export_fieldset.html" %}
 
   <div class="btn-row">
     <button type="submit" class="btn btn--filled" {% if not input_files %}disabled{% endif %}>
@@ -126,7 +122,6 @@
   if (!form) return;
   const afftdnBox = form.querySelector('#afftdn-params');
   const enhanceCb = form.querySelector('#enhance-cb');
-  const resampleCb = form.querySelector('#resample-cb');
   const lowpassRow = form.querySelector('#enhance-lowpass-row');
   const lowpassCb = form.querySelector('#enhance-lowpass-cb');
 
@@ -136,15 +131,7 @@
       afftdnBox.classList.toggle('hidden', !afftdn.checked);
     }
   }
-  function syncResample() {
-    if (enhanceCb && resampleCb) {
-      if (enhanceCb.checked) {
-        resampleCb.checked = true;
-        resampleCb.disabled = true;
-      } else {
-        resampleCb.disabled = false;
-      }
-    }
+  function syncLowpass() {
     if (lowpassRow && enhanceCb && lowpassCb) {
       lowpassRow.classList.toggle('hidden', !enhanceCb.checked);
       if (!enhanceCb.checked) {
@@ -154,9 +141,9 @@
   }
   form.addEventListener('change', function () {
     syncAfftdn();
-    syncResample();
+    syncLowpass();
   });
   syncAfftdn();
-  syncResample();
+  syncLowpass();
 })();
 </script>

@@ -28,6 +28,7 @@ from db import (  # noqa: E402
     delete_job,
     get_job,
     has_active_job,
+    has_active_job_for_input,
     init_db,
     list_jobs,
 )
@@ -310,6 +311,32 @@ def cancel_job(
     return templates.TemplateResponse(
         "jobs_table.html",
         {"request": request, "jobs": list_jobs(), "flash": flash},
+    )
+
+
+@app.post("/input/delete", response_class=HTMLResponse)
+async def delete_input_file(
+    request: Request,
+    filename: str = Form(...),
+    _: None = Depends(verify_auth),
+) -> HTMLResponse:
+    name = Path(filename).name
+    path = (INPUT_DIR / name).resolve()
+    flash: str | None = None
+
+    if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+        flash = f"Файл не найден: {name}"
+    elif path.parent.resolve() != INPUT_DIR.resolve():
+        flash = "Недопустимый путь"
+    elif has_active_job_for_input(str(path)):
+        flash = f"«{name}» в очереди или обрабатывается — удаление отменено"
+    else:
+        path.unlink()
+        flash = f"Удалено из input/: {name}"
+
+    return templates.TemplateResponse(
+        "process_panel.html",
+        _panel_ctx(request, flash=flash),
     )
 
 

@@ -81,18 +81,9 @@
       </fieldset>
       {% endif %}
 
-      <fieldset class="block">
-        <legend>Экспорт</legend>
-        <label class="check-row"><input type="checkbox" name="resample_441" value="on" checked> 44.1 kHz</label>
-        <select name="output_format" class="select-input">
-          <option value="wav">WAV</option>
-          <option value="flac">FLAC</option>
-          <option value="mp3">MP3</option>
-          <option value="m4a">M4A</option>
-        </select>
-        <input type="hidden" name="afftdn_slider" value="50">
-        <input type="hidden" name="afftdn_nf_slider" value="50">
-      </fieldset>
+      {% include "export_fieldset.html" %}
+      <input type="hidden" name="afftdn_slider" value="50">
+      <input type="hidden" name="afftdn_nf_slider" value="50">
     </details>
     {% else %}
     <details class="cue-pipeline-details">
@@ -130,18 +121,9 @@
       </fieldset>
       {% endif %}
 
-      <fieldset class="block">
-        <legend>Экспорт</legend>
-        <label class="check-row"><input type="checkbox" name="resample_441" value="on" checked> 44.1 kHz</label>
-        <select name="output_format" class="select-input">
-          <option value="wav">WAV</option>
-          <option value="flac">FLAC</option>
-          <option value="mp3">MP3</option>
-          <option value="m4a">M4A</option>
-        </select>
-        <input type="hidden" name="afftdn_slider" value="50">
-        <input type="hidden" name="afftdn_nf_slider" value="50">
-      </fieldset>
+      {% include "export_fieldset.html" %}
+      <input type="hidden" name="afftdn_slider" value="50">
+      <input type="hidden" name="afftdn_nf_slider" value="50">
     </details>
     {% endif %}
 

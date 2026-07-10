@@ -142,12 +142,37 @@
   document.body.addEventListener("htmx:afterSwap", function (ev) {
     const target = ev.detail && ev.detail.target;
     if (!target) return;
-    if (target.id === "process-panel") tryCueToastFromPayload();
+    if (target.id === "process-panel") {
+      tryCueToastFromPayload();
+      initSrSwitch(target);
+    }
     if (target.id === "jobs-panel") scanJobsTable(target);
   });
 
+  function initSrSwitch(root) {
+    const scope = root || document;
+    scope.querySelectorAll(".sr-switch").forEach(function (wrap) {
+      const range = wrap.querySelector(".sr-switch__range");
+      const form = wrap.closest("form");
+      if (!range || !form) return;
+      const hidden = form.querySelector('input[name="resample_441"]');
+      const labels = wrap.querySelectorAll(".sr-switch__label");
+      function sync() {
+        const is441 = range.value === "0";
+        if (hidden) hidden.value = is441 ? "on" : "off";
+        if (labels[0]) labels[0].classList.toggle("sr-switch__label--active", is441);
+        if (labels[1]) labels[1].classList.toggle("sr-switch__label--active", !is441);
+      }
+      if (range.dataset.srBound) return;
+      range.dataset.srBound = "1";
+      range.addEventListener("input", sync);
+      sync();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     tryCueToastFromPayload();
+    initSrSwitch(document);
     const panel = document.getElementById("jobs-panel");
     if (panel) scanJobsTable(panel);
   });

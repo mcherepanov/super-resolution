@@ -122,6 +122,6 @@ def options_from_form(form: dict[str, str]) -> dict[str, Any]:
         "enhance_lowpass": (
             form.get("enhance_lowpass") == "on" and form.get("enhance") == "on"
         ),
-        "resample_441": form.get("resample_441", "on") == "on",
+        "resample_441": form.get("resample_441", "on") in ("on", "1", "true"),
         "output_format": form.get("output_format", "wav"),
     }

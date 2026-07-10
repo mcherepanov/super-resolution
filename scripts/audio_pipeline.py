@@ -150,6 +150,8 @@ def run_pipeline(
 
         out_sr = TARGET_SR
         pcm_for_export = current
+        want_441 = opts.get("resample_441", True)
+        export_sr = OUTPUT_SR if want_441 else TARGET_SR
 
         if opts.get("enhance"):
             if model is None or device is None:
@@ -170,18 +172,26 @@ def run_pipeline(
                     from job_cancel import sleep_cancellable
                     delay = min(max(dur_hint * 0.05, MOCK_DELAY_SEC * 0.5), MOCK_DELAY_SEC * 3)
                     sleep_cancellable(delay)
+                pcm_for_export = current
+                if want_441:
+                    resampled = _step_path(base, "441")
+                    temps.append(resampled)
+                    resample_wav(current, resampled, OUTPUT_SR)
+                    pcm_for_export = resampled
+                out_sr = export_sr
             else:
                 enhance_file(
                     model, current, enhanced_dst,
                     device=device,
                     lowpass=bool(opts.get("enhance_lowpass", LOWPASS)),
                     on_progress=make_enhance_callback(progress),
+                    output_sr=export_sr,
                 )
+                pcm_for_export = enhanced_dst
+                out_sr = export_sr
             if progress is not None:
                 progress.complete_step("AI · готово")
-            pcm_for_export = enhanced_dst
-            out_sr = OUTPUT_SR
-        elif opts.get("resample_441", True):
+        elif want_441:
             check_cancel()
             if progress is not None:
                 progress.set_step_progress(0.0, "Ресемпл 44.1 kHz")

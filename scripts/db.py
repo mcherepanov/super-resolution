@@ -141,6 +141,21 @@ def has_active_job(input_path: str, output_path: str) -> bool:
         return row is not None
 
 
+def has_active_job_for_input(input_path: str) -> bool:
+    """Есть ли queued/processing для этого входного файла."""
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT 1 FROM jobs
+            WHERE input_path = ?
+              AND status IN ('queued', 'processing')
+            LIMIT 1
+            """,
+            (input_path,),
+        ).fetchone()
+        return row is not None
+
+
 def try_begin_processing(job_id: int, started_at: str) -> bool:
     """queued → processing, если не отменено. False если уже cancelled/не queued."""
     with get_conn() as conn:

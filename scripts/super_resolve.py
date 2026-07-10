@@ -224,6 +224,7 @@ def enhance_file(
     lowpass: bool = False,
     on_progress: ChunkProgressFn | None = None,
     console: ProgressReporter | None = None,
+    output_sr: int = OUTPUT_SR,
 ) -> tuple[float, int, int, float]:
     """Returns (audio_duration, original_sample_rate, output_sample_rate, speed)."""
     raw, sr = _load_audio(src)
@@ -248,18 +249,24 @@ def enhance_file(
 
     from job_cancel import check_cancel
     check_cancel()
-    print("  Resampling: 48 kHz -> 44.1 kHz ...", end="", flush=True)
-    subprocess.run(
-        ["ffmpeg", "-i", str(temp_dst), "-ar", str(OUTPUT_SR), str(dst), "-y"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=True,
-    )
-    temp_dst.unlink()
-    print(" Done")
+    if output_sr == TARGET_SR:
+        if temp_dst.resolve() != Path(dst).resolve():
+            temp_dst.replace(dst)
+        final_sr = TARGET_SR
+    else:
+        print("  Resampling: 48 kHz -> 44.1 kHz ...", end="", flush=True)
+        subprocess.run(
+            ["ffmpeg", "-i", str(temp_dst), "-ar", str(OUTPUT_SR), str(dst), "-y"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+        temp_dst.unlink()
+        print(" Done")
+        final_sr = OUTPUT_SR
 
     speed = audio_duration / elapsed if elapsed > 0 else 0
-    return audio_duration, sr, OUTPUT_SR, speed
+    return audio_duration, sr, final_sr, speed
 
 
 def collect_audio_files(root: str | Path) -> list[Path]:
