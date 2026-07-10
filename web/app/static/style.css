@@ -146,13 +146,13 @@ body {
 }
 
 .btn--filled {
-  background: var(--color-orange);
+  background: var(--color-blue-deep);
   color: #ffffff;
   box-shadow: var(--md-sys-elevation-1);
 }
 
 .btn--filled:hover:not(:disabled) {
-  background: var(--color-orange-deep);
+  background: var(--color-blue);
   box-shadow: var(--md-sys-elevation-2);
 }
 
@@ -479,6 +479,23 @@ a:hover {
 
 .toast--hidden {
   display: none;
+}
+
+.toast--done {
+  border-left: 4px solid #2e7d32;
+}
+
+.toast--error {
+  border-left: 4px solid var(--md-sys-color-error);
+}
+
+.toast--cancelled {
+  border-left: 4px solid var(--color-orange);
+}
+
+.toast-hint {
+  font-size: 0.8125rem;
+  opacity: 0.9;
 }
 
 .toast__body {

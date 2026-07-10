@@ -17,7 +17,12 @@
   </thead>
   <tbody>
     {% for job in jobs %}
-    <tr class="status-{{ job.status }}">
+    <tr class="status-{{ job.status }}"
+        data-job-id="{{ job.id }}"
+        data-job-status="{{ job.status }}"
+        data-job-filename="{{ job.filename | e }}"
+        {% if job.duration_sec %}data-job-duration="{{ '%.1f'|format(job.duration_sec) }}s"{% endif %}
+        {% if job.error_message %}data-job-error="{{ job.error_message[:120] | e }}"{% endif %}>
       <td>{{ job.id }}</td>
       <td title="{{ job.input_path }}">{{ job.filename }}</td>
       <td class="opts-cell" title="{{ job.options or '' }}">{{ job_options_summary(job) }}</td>
