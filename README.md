@@ -157,10 +157,23 @@ super-resolution/
 
 ## Быстрый старт
 
+**Hello world за ~2 минуты** (mock, без GPU):
+
+```bash
+cp .env.example .env
+# в .env: MOCK_MODE=1
+make build && make up
+```
+
+Откройте http://localhost:8080 → загрузите `.wav`/`.flac` в `input/` → отметьте файл → «Поставить в очередь». Статус появится в таблице jobs.
+
+Полный режим с AI (GPU, веса ~3 ГБ):
+
 ```bash
 cp .env.example .env
 make decode     # или вручную заполнить .env
 make build
+make clone      # скачать веса (HUGGINGFACE_TOKEN в .env)
 make up
 ```
 
@@ -253,6 +266,19 @@ make build && make up
 Поднимутся `rabbitmq` + `web` + `worker-mock` (без CUDA, без весов). Worker имитирует обработку; очередь и история работают полностью.
 
 На сервере с GPU: `MOCK_MODE=0` — контейнер `flashsr` с FlashSR.
+
+## Документация и участие
+
+| Файл | Описание |
+|------|----------|
+| [PLAN.md](PLAN.md) | план этапов и архитектура |
+| [CONTRIBUTING](CONTRIBUTING) | как вносить изменения |
+| [CODE_OF_CONDUCT](CODE_OF_CONDUCT) | правила общения |
+| [SECURITY](SECURITY) | сообщения об уязвимостях |
+| [LICENSE](LICENSE) | лицензия MIT на код репозитория |
+
+Репозиторий: [gitverse.ru/Max_Cherep/super-resolution](https://gitverse.ru/Max_Cherep/super-resolution)  
+Вопросы и баги — через Issues на GitVerse.
 
 ## Лицензия
 
