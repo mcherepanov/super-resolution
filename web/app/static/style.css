@@ -1,10 +1,15 @@
 /* Светлая тема: нейтральная база, акценты голубой · оранжевый · жёлтый */
 :root {
-  --md-sys-color-primary: #1976d2;
+  --color-blue: #1565c0;
+  --color-blue-deep: #0d47a1;
+  --color-orange: #e65100;
+  --color-orange-deep: #bf360c;
+
+  --md-sys-color-primary: var(--color-blue);
   --md-sys-color-on-primary: #ffffff;
   --md-sys-color-primary-container: #e3f2fd;
-  --md-sys-color-on-primary-container: #0d47a1;
-  --md-sys-color-secondary: #ef6c00;
+  --md-sys-color-on-primary-container: var(--color-blue-deep);
+  --md-sys-color-secondary: var(--color-orange);
   --md-sys-color-secondary-container: #fff3e0;
   --md-sys-color-on-secondary-container: #5d3200;
   --md-sys-color-surface: #f5f5f5;
@@ -27,10 +32,10 @@
 
   --status-done-bg: #e8f5e9;
   --status-done-fg: #2e7d32;
-  --status-processing-bg: #fff8e1;
-  --status-processing-fg: #f57f17;
-  --status-queued-bg: #e1f5fe;
-  --status-queued-fg: #0277bd;
+  --status-processing-bg: #fff3e0;
+  --status-processing-fg: var(--color-orange);
+  --status-queued-bg: #e3f2fd;
+  --status-queued-fg: var(--color-blue-deep);
   --status-failed-bg: var(--md-sys-color-error-container);
   --status-failed-fg: var(--md-sys-color-on-error-container);
   --status-skipped-bg: #f5f5f5;
@@ -52,9 +57,10 @@ body {
 
 /* Top app bar */
 .app-bar {
-  background: var(--md-sys-color-primary);
+  background: var(--color-blue-deep);
   color: var(--md-sys-color-on-primary);
   box-shadow: var(--md-sys-elevation-1);
+  border-bottom: 3px solid var(--color-orange);
   padding: 0 1.5rem;
 }
 
@@ -84,10 +90,10 @@ body {
   margin-top: 0.75rem;
   padding: 0.35rem 0.75rem;
   border-radius: var(--md-shape-corner-small);
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--color-orange);
   color: #ffffff;
   font-size: 0.8125rem;
-  border: 1px solid rgba(255, 255, 255, 0.35);
+  border: none;
   font-weight: 500;
 }
 
@@ -108,9 +114,11 @@ body {
 
 .card__title {
   margin: 0 0 1rem;
+  padding-left: 0.65rem;
+  border-left: 3px solid var(--color-orange);
   font-size: 1.125rem;
   font-weight: 500;
-  color: var(--md-sys-color-on-surface);
+  color: var(--color-blue-deep);
 }
 
 /* Buttons */
@@ -138,24 +146,31 @@ body {
 }
 
 .btn--filled {
-  background: var(--md-sys-color-primary);
-  color: var(--md-sys-color-on-primary);
+  background: var(--color-orange);
+  color: #ffffff;
   box-shadow: var(--md-sys-elevation-1);
 }
 
-.btn--filled:hover {
-  background: #1565c0;
+.btn--filled:hover:not(:disabled) {
+  background: var(--color-orange-deep);
   box-shadow: var(--md-sys-elevation-2);
 }
 
+.btn--filled:disabled {
+  background: #bdbdbd;
+  color: #757575;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .btn--tonal {
-  background: var(--md-sys-color-secondary-container);
-  color: var(--md-sys-color-on-secondary-container);
-  border: 1px solid #ffcc80;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border: 1px solid #90caf9;
 }
 
 .btn--tonal:hover {
-  background: #ffe0b2;
+  background: #bbdefb;
 }
 
 /* File input */
@@ -200,7 +215,7 @@ body {
   color: var(--md-sys-color-on-surface);
   font-size: 0.875rem;
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-left: 4px solid var(--md-sys-color-primary);
+  border-left: 4px solid var(--color-orange);
 }
 
 /* Data table */
@@ -221,9 +236,9 @@ th {
   padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 500;
-  color: var(--md-sys-color-on-surface-variant);
-  background: var(--md-sys-color-surface-container-high);
-  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  color: var(--color-blue-deep);
+  background: var(--md-sys-color-primary-container);
+  border-bottom: 2px solid #90caf9;
 }
 
 td {
@@ -308,12 +323,12 @@ tbody tr:hover {
 }
 
 .job-progress__bar::-webkit-progress-value {
-  background: var(--md-sys-color-secondary);
+  background: var(--color-orange);
   border-radius: var(--md-shape-corner-full);
 }
 
 .job-progress__bar::-moz-progress-bar {
-  background: var(--md-sys-color-secondary);
+  background: var(--color-orange);
   border-radius: var(--md-shape-corner-full);
 }
 
@@ -366,12 +381,18 @@ a:hover {
 .block legend {
   font-weight: 500;
   padding: 0 0.35rem;
+  color: var(--color-blue-deep);
 }
 
 .block--highlight {
   border-color: #ffcc80;
-  background: var(--md-sys-color-surface);
-  border-left: 3px solid var(--md-sys-color-secondary);
+  background: #fff8f0;
+  border-left: 4px solid var(--color-orange);
+}
+
+.block--highlight legend {
+  color: var(--color-orange);
+  font-weight: 600;
 }
 
 .check-row, .radio-row {
@@ -493,8 +514,11 @@ a:hover {
 
 .cue-section__title {
   margin: 0 0 0.75rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--color-orange);
   font-size: 1rem;
   font-weight: 500;
+  color: var(--color-blue-deep);
 }
 
 .cue-meta {
