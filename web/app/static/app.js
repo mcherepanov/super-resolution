@@ -151,21 +151,21 @@
 
   function initSrSwitch(root) {
     const scope = root || document;
-    scope.querySelectorAll(".sr-switch").forEach(function (wrap) {
-      const range = wrap.querySelector(".sr-switch__range");
+    scope.querySelectorAll(".sr-toggle").forEach(function (wrap) {
+      const input = wrap.querySelector(".sr-toggle__input");
       const form = wrap.closest("form");
-      if (!range || !form) return;
+      if (!input || !form) return;
       const hidden = form.querySelector('input[name="resample_441"]');
-      const labels = wrap.querySelectorAll(".sr-switch__label");
+      const labels = wrap.querySelectorAll(".sr-toggle__label");
       function sync() {
-        const is441 = range.value === "0";
+        const is441 = !input.checked;
         if (hidden) hidden.value = is441 ? "on" : "off";
-        if (labels[0]) labels[0].classList.toggle("sr-switch__label--active", is441);
-        if (labels[1]) labels[1].classList.toggle("sr-switch__label--active", !is441);
+        if (labels[0]) labels[0].classList.toggle("sr-toggle__label--active", is441);
+        if (labels[1]) labels[1].classList.toggle("sr-toggle__label--active", !is441);
       }
-      if (range.dataset.srBound) return;
-      range.dataset.srBound = "1";
-      range.addEventListener("input", sync);
+      if (input.dataset.srBound) return;
+      input.dataset.srBound = "1";
+      input.addEventListener("change", sync);
       sync();
     });
   }

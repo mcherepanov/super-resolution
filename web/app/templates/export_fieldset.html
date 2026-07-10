@@ -1,10 +1,12 @@
 <fieldset class="block">
   <legend>Экспорт</legend>
-  <div class="sr-switch">
-    <span class="sr-switch__label sr-switch__label--active">44.1 kHz</span>
-    <input type="range" class="sr-switch__range" name="output_sr_choice"
-           min="0" max="1" step="1" value="0" aria-label="Частота дискретизации">
-    <span class="sr-switch__label">48 kHz</span>
+  <div class="sr-toggle">
+    <span class="sr-toggle__label sr-toggle__label--active">44.1 kHz</span>
+    <label class="sr-toggle__control" title="Частота дискретизации">
+      <input type="checkbox" class="sr-toggle__input" aria-label="48 kHz">
+      <span class="sr-toggle__track" aria-hidden="true"></span>
+    </label>
+    <span class="sr-toggle__label">48 kHz</span>
   </div>
   <input type="hidden" name="resample_441" value="on">
   <label class="field-inline export-format-row">Формат выхода
