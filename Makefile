@@ -73,10 +73,10 @@ else
 endif
 
 console:
-	docker exec -it flashsr_gpu /bin/bash
+	docker exec -it sr_flashsr /bin/bash
 
 enhance:
-	docker exec flashsr_gpu python3 scripts/super_resolve.py \
+	docker exec sr_flashsr python3 scripts/super_resolve.py \
 		-i /app/input -o /app/output -w /app/weights
 
 # Скачать веса с HuggingFace (HUGGINGFACE_TOKEN в .env)

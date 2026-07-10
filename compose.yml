@@ -50,7 +50,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: flashsr_gpu
+    container_name: sr_flashsr
     runtime: nvidia
     command: python3 scripts/worker.py
     environment:
