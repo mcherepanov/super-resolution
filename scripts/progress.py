@@ -110,12 +110,14 @@ class JobProgress:
         self._base = 0.0
         self._batch_track = 0
         self._batch_total = 0
+        self._ai_chunks_per_channel = 0
 
     def set_batch(self, track_index: int, track_total: int) -> None:
         self._batch_track = track_index
         self._batch_total = track_total
         self._cursor = 0
         self._base = 0.0
+        self._ai_chunks_per_channel = 0
 
     def _stage_weight(self) -> float:
         if self._cursor >= len(self._stages):
@@ -160,17 +162,31 @@ class JobProgress:
         if total <= 0:
             return
         if channel == "L":
+            self._ai_chunks_per_channel = total
             sub = (current / total) * 0.5
+            overall_cur = current
+            overall_tot = total * 2
+            detail = f"AI · {overall_cur}/{overall_tot} · L {current}/{total}"
         elif channel == "R":
+            prev = self._ai_chunks_per_channel or total
             sub = 0.5 + (current / total) * 0.5
+            overall_cur = prev + current
+            overall_tot = prev + total
+            detail = f"AI · {overall_cur}/{overall_tot} · R {current}/{total}"
         else:
             sub = current / total
+            detail = f"AI · {channel} · {current}/{total}"
+
         eta_str = ""
         if current > 1 and elapsed > 0:
             rate = (current - 1) / elapsed
             if rate > 0:
-                eta_str = f" · ETA {((total - current) / rate):.0f}s"
-        self.set_step_progress(sub, f"AI · {channel} · {current}/{total}{eta_str}")
+                if channel == "L" and self._ai_chunks_per_channel > 0:
+                    remaining = (total - current) + total
+                else:
+                    remaining = total - current
+                eta_str = f" · ETA {remaining / rate:.0f}s"
+        self.set_step_progress(sub, f"{detail}{eta_str}")
 
     def mock_enhance_sleep(self, duration: float, delay: float) -> None:
         if delay <= 0 or self.reporter is None:
