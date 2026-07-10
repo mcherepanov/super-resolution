@@ -1,4 +1,4 @@
-.PHONY: build up down stop start status console enhance logs clone encode decode admin
+.PHONY: build up down stop start status console enhance logs clone encode decode admin reset
 
 -include .env
 export
@@ -10,6 +10,12 @@ WEIGHTS_DST ?= ./volumes/FlashSR/weights
 ENV_FILE ?= .env
 ENV_VAULT ?= .env.vault
 VAULT_PASS_FILE ?= .vault_pass
+INPUT_DIR ?= ./input
+OUTPUT_DIR ?= ./output
+DATA_DIR ?= ./data
+DB_FILE ?= $(DATA_DIR)/app.db
+QUEUE_NAME ?= sr_jobs
+RABBIT_CONTAINER ?= sr_rabbitmq
 
 build:
 ifeq ($(MOCK_MODE),1)
@@ -142,3 +148,41 @@ decode:
 	fi
 	@chmod 600 "$(ENV_FILE)"
 	@echo "Готово: $(ENV_FILE)"
+
+# Полный сброс: input/output, таблица jobs (+ autoincrement), очередь RabbitMQ
+reset:
+	@echo "=== reset: $(INPUT_DIR), $(OUTPUT_DIR), jobs, $(QUEUE_NAME) ==="
+	@docker compose --profile gpu --profile mock stop flashsr worker-mock 2>/dev/null || true
+	@if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx '$(RABBIT_CONTAINER)'; then \
+		docker exec $(RABBIT_CONTAINER) rabbitmqctl purge_queue '$(QUEUE_NAME)' \
+			&& echo "RabbitMQ: очередь $(QUEUE_NAME) очищена" \
+			|| echo "RabbitMQ: очередь $(QUEUE_NAME) не найдена или пуста"; \
+	else \
+		echo "RabbitMQ: контейнер $(RABBIT_CONTAINER) не запущен — очередь не очищена"; \
+	fi
+	@mkdir -p "$(INPUT_DIR)" "$(OUTPUT_DIR)"
+	@find "$(INPUT_DIR)" -mindepth 1 -delete 2>/dev/null || true
+	@find "$(OUTPUT_DIR)" -mindepth 1 -delete 2>/dev/null || true
+	@echo "Каталоги: $(INPUT_DIR), $(OUTPUT_DIR) — очищены"
+	@if [ -f "$(DB_FILE)" ]; then \
+		_py='import sqlite3; c=sqlite3.connect(_DB); c.execute("DELETE FROM jobs"); c.execute("DELETE FROM sqlite_sequence WHERE name='"'"'jobs'"'"'"); c.commit(); c.close()'; \
+		if python3 -c "_DB='$(DB_FILE)'; $$_py" 2>/dev/null; then \
+			echo "SQLite: jobs очищена, id сброшен"; \
+		elif docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'sr_web'; then \
+			docker exec sr_web python3 -c "_DB='/app/data/app.db'; $$_py" \
+			&& echo "SQLite: jobs очищена, id сброшен (через sr_web)"; \
+		else \
+			echo "SQLite: нет прав на $(DB_FILE) — запустите make up или: sudo chown $$USER $(DB_FILE)"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "SQLite: $(DB_FILE) не найден — пропуск"; \
+	fi
+ifeq ($(MOCK_MODE),1)
+	@docker compose --profile mock start worker-mock 2>/dev/null \
+		&& echo "worker-mock: запущен" || echo "worker-mock: не запущен (make up)"
+else
+	@docker compose --profile gpu start flashsr 2>/dev/null \
+		&& echo "flashsr: запущен" || echo "flashsr: не запущен (make up)"
+endif
+	@echo "Готово."
