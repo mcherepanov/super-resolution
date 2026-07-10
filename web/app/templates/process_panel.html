@@ -7,36 +7,39 @@
 
 {% include "cue_panel.html" %}
 
-<form class="process-form"
+<fieldset class="block">
+  <legend>Файлы в input/</legend>
+  {% if input_files %}
+  <div class="file-checklist">
+    {% for f in input_files %}
+    <div class="file-checklist-row">
+      <label class="check-row">
+        <input type="checkbox" name="filenames" value="{{ f.name }}" form="process-form">
+        <span class="file-checklist__name">{{ f.name }}</span>
+      </label>
+      <div class="file-delete-wrap">
+        <input type="hidden" name="filename" value="{{ f.name }}">
+        <button type="button" class="btn-delete-file"
+                hx-post="/input/delete"
+                hx-target="#process-panel"
+                hx-swap="innerHTML"
+                hx-include="closest .file-delete-wrap"
+                hx-confirm="Удалить {{ f.name }} из input/?">
+          Удалить
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="hint">Нет файлов — загрузите выше.</p>
+  {% endif %}
+</fieldset>
+
+<form id="process-form" class="process-form"
       hx-post="/process"
       hx-target="#jobs-panel"
       hx-swap="innerHTML">
-
-  <fieldset class="block">
-    <legend>Файлы в input/</legend>
-    {% if input_files %}
-    <div class="file-checklist">
-      {% for f in input_files %}
-      <div class="file-checklist-row">
-        <label class="check-row">
-          <input type="checkbox" name="filenames" value="{{ f.name }}">
-          <span class="file-checklist__name">{{ f.name }}</span>
-        </label>
-        <form class="file-delete-form"
-              hx-post="/input/delete"
-              hx-target="#process-panel"
-              hx-swap="innerHTML"
-              hx-confirm="Удалить {{ f.name }} из input/?">
-          <input type="hidden" name="filename" value="{{ f.name }}">
-          <button type="submit" class="btn-delete-file">Удалить</button>
-        </form>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="hint">Нет файлов — загрузите выше.</p>
-    {% endif %}
-  </fieldset>
 
   <fieldset class="block">
     <legend>Шумоподавление</legend>

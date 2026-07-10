@@ -471,7 +471,7 @@ a:hover {
   white-space: nowrap;
 }
 
-.file-delete-form {
+.file-delete-wrap {
   margin: 0;
   flex-shrink: 0;
 }
