@@ -502,11 +502,12 @@ a:hover {
 .sr-toggle__label {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--md-sys-color-on-surface-variant);
+  color: var(--color-blue);
 }
 
 .sr-toggle__label--active {
   color: var(--color-blue-deep);
+  font-weight: 600;
 }
 
 .sr-toggle__control {
@@ -528,7 +529,7 @@ a:hover {
   width: 2.75rem;
   height: 1.35rem;
   border-radius: var(--md-shape-corner-full);
-  background: var(--color-blue-deep);
+  background: var(--color-orange);
   transition: background 0.15s;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
 }
@@ -547,7 +548,7 @@ a:hover {
 }
 
 .sr-toggle__input:checked + .sr-toggle__track {
-  background: var(--color-orange);
+  background: var(--color-blue-deep);
 }
 
 .sr-toggle__input:checked + .sr-toggle__track::after {
