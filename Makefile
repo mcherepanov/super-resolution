@@ -44,6 +44,7 @@ status:
 	@echo ""
 	@echo "── режим ────────────────────────────────────"
 	@echo "  MOCK_MODE=$(MOCK_MODE)"
+	@if [ "$(MOCK_MODE)" = "1" ]; then echo "  AI в UI:   нет (mock)"; else echo "  AI в UI:   да (gpu)"; fi
 	@echo "  Web UI:    http://localhost:$(WEB_PORT)"
 	@lan_ip=$$(hostname -I 2>/dev/null | awk '{print $$1}'); \
 	if [ -n "$$lan_ip" ]; then echo "  LAN:       http://$$lan_ip:$(WEB_PORT)"; fi

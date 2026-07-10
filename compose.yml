@@ -32,7 +32,8 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-guest}
       - QUEUE_NAME=${QUEUE_NAME:-sr_jobs}
       - APP_PASSWORD=${APP_PASSWORD:-}
-      - ENHANCE_AVAILABLE=${ENHANCE_AVAILABLE:-0}
+      - MOCK_MODE=${MOCK_MODE:-0}
+      - ENHANCE_AVAILABLE=${ENHANCE_AVAILABLE:-}
     volumes:
       - ./web/app:/app/app
       - ./scripts:/app/scripts

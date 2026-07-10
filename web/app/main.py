@@ -49,7 +49,27 @@ INPUT_DIR = Path(os.environ.get("INPUT_DIR", "/app/input"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "/app/output"))
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "sr_jobs")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
-ENHANCE_AVAILABLE = os.environ.get("ENHANCE_AVAILABLE", "").lower() in ("1", "true", "yes")
+
+
+def _env_bool(name: str) -> bool | None:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.strip().lower() in ("1", "true", "yes")
+
+
+def _enhance_available() -> bool:
+    """UI: AI доступен если ENHANCE_AVAILABLE=1 или MOCK_MODE=0."""
+    explicit = _env_bool("ENHANCE_AVAILABLE")
+    if explicit is not None:
+        return explicit
+    mock = _env_bool("MOCK_MODE")
+    if mock is not None:
+        return not mock
+    return False
+
+
+ENHANCE_AVAILABLE = _enhance_available()
 
 AUDIO_EXTENSIONS = INPUT_EXTENSIONS
 CUE_EXTENSION = ".cue"
