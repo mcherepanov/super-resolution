@@ -120,13 +120,20 @@ def _output_path_for(input_path: Path, output_format: str) -> Path:
     return OUTPUT_DIR / f"{stem}{ext}"
 
 
-def _list_input_files() -> list[Path]:
+def _list_input_files() -> list[dict[str, str | bool]]:
     if not INPUT_DIR.exists():
         return []
-    return sorted(
+    files: list[dict[str, str | bool]] = []
+    for p in sorted(
         p for p in INPUT_DIR.iterdir()
         if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS
-    )
+    ):
+        resolved = str(p.resolve())
+        files.append({
+            "name": p.name,
+            "delete_busy": has_active_job_for_input(resolved),
+        })
+    return files
 
 
 def _list_cue_sheets() -> list[dict]:
@@ -312,6 +319,17 @@ def cancel_job(
         "jobs_table.html",
         {"request": request, "jobs": list_jobs(), "flash": flash},
     )
+
+
+@app.get("/input/busy-files")
+def input_busy_files(_: None = Depends(verify_auth)) -> dict[str, list[str]]:
+    return {
+        "files": [
+            str(f["name"])
+            for f in _list_input_files()
+            if f.get("delete_busy")
+        ],
+    }
 
 
 @app.post("/input/delete", response_class=HTMLResponse)

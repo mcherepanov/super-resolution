@@ -487,9 +487,14 @@ a:hover {
   white-space: nowrap;
 }
 
-.btn-delete-file:hover {
+.btn-delete-file:hover:not(:disabled) {
   background: var(--color-orange);
   color: #ffffff;
+}
+
+.btn-delete-file:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .sr-toggle {

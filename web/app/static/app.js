@@ -137,6 +137,28 @@
       jobStatuses.set(id, status);
     }
     jobsSeeded = true;
+    syncDeleteButtons();
+  }
+
+  function syncDeleteButtons() {
+    fetch("/input/busy-files")
+      .then(function (res) {
+        return res.ok ? res.json() : null;
+      })
+      .then(function (data) {
+        if (!data) return;
+        const busy = new Set(data.files || []);
+        document.querySelectorAll(".file-delete-wrap").forEach(function (wrap) {
+          const input = wrap.querySelector('input[name="filename"]');
+          const btn = wrap.querySelector(".btn-delete-file");
+          if (!input || !btn) return;
+          const isBusy = busy.has(input.value);
+          btn.disabled = isBusy;
+          btn.title = isBusy ? "В очереди или обрабатывается" : "";
+          btn.classList.toggle("btn-delete-file--busy", isBusy);
+        });
+      })
+      .catch(function () { /* ignore */ });
   }
 
   document.body.addEventListener("htmx:afterSwap", function (ev) {
@@ -145,6 +167,7 @@
     if (target.id === "process-panel") {
       tryCueToastFromPayload();
       initSrSwitch(target);
+      syncDeleteButtons();
     }
     if (target.id === "jobs-panel") scanJobsTable(target);
   });
@@ -175,5 +198,6 @@
     initSrSwitch(document);
     const panel = document.getElementById("jobs-panel");
     if (panel) scanJobsTable(panel);
+    else syncDeleteButtons();
   });
 })();

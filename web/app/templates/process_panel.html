@@ -19,7 +19,8 @@
       </label>
       <div class="file-delete-wrap">
         <input type="hidden" name="filename" value="{{ f.name }}">
-        <button type="button" class="btn-delete-file"
+        <button type="button" class="btn-delete-file{% if f.delete_busy %} btn-delete-file--busy{% endif %}"
+                {% if f.delete_busy %}disabled title="В очереди или обрабатывается"{% endif %}
                 hx-post="/input/delete"
                 hx-target="#process-panel"
                 hx-swap="innerHTML"
