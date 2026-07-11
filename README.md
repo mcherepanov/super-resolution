@@ -8,7 +8,7 @@ Docker-обёртка для пакетной обработки аудио: **f
 
 [![Стенд с NVIDIA CMP 50HX — целевая GPU-конфигурация проекта](docs/images/cmp50hx-stand-sm.jpg)](docs/images/cmp50hx-stand.jpg)
 
-*Обработка аудио на CMP 50HX: Docker, очередь задач, Web UI. [Полное фото](docs/images/cmp50hx-stand.jpg).*
+*Стенд на Minisforum UM890 Pro: CMP 50HX, Docker, очередь задач, Web UI. [Полное фото](docs/images/cmp50hx-stand.jpg).*
 
 ## Источники и авторы
 
