@@ -446,14 +446,34 @@ a:hover {
   background: var(--md-sys-color-surface);
 }
 
-.file-checklist-panel {
+.file-checklist-section {
+  margin: 0 0 0.75rem;
+}
+
+.file-checklist-head {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.file-checklist-head__title {
+  font-weight: 500;
+  color: var(--color-blue-deep);
+}
+
+.file-checklist-fieldset {
+  margin: 0;
+}
+
+.file-checklist-fieldset.block {
+  padding: 0.5rem 0.75rem;
 }
 
 .file-checklist {
-  max-height: 12rem;
+  max-height: 13.5rem;
   overflow-y: auto;
 }
 

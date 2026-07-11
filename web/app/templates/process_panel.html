@@ -7,11 +7,11 @@
 
 {% include "cue_panel.html" %}
 
-<fieldset class="block">
-  <legend>Файлы в input/</legend>
-  {% if input_files %}
-  {% set deletable_count = input_files | rejectattr('delete_busy') | list | length %}
-  <div class="file-checklist-panel">
+<div class="file-checklist-section">
+  <div class="file-checklist-head">
+    <span class="file-checklist-head__title">Файлы в input/</span>
+    {% if input_files %}
+    {% set deletable_count = input_files | rejectattr('delete_busy') | list | length %}
     <div class="file-checklist-toolbar">
       <button type="button" class="file-checklist-toolbar__btn btn-select-all-files">Выделить все</button>
       <button type="button" class="file-checklist-toolbar__btn file-checklist-toolbar__btn--danger btn-delete-all-files"
@@ -23,6 +23,10 @@
         Удалить все
       </button>
     </div>
+    {% endif %}
+  </div>
+  <fieldset class="block file-checklist-fieldset">
+    {% if input_files %}
     <div class="file-checklist" id="file-checklist">
     {% for f in input_files %}
     <div class="file-checklist-row">
@@ -45,11 +49,11 @@
     </div>
     {% endfor %}
     </div>
-  </div>
-  {% else %}
-  <p class="hint">Нет файлов — загрузите выше.</p>
-  {% endif %}
-</fieldset>
+    {% else %}
+    <p class="hint">Нет файлов — загрузите выше.</p>
+    {% endif %}
+  </fieldset>
+</div>
 
 <form id="process-form" class="process-form"
       hx-post="/process"
