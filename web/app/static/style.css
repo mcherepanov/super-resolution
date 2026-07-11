@@ -602,6 +602,10 @@ a:hover {
   margin-top: 0.25rem;
 }
 
+.mp3-bitrate-row.hidden {
+  display: none;
+}
+
 .opts-cell {
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant);

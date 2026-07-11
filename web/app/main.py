@@ -177,6 +177,7 @@ def _pipeline_form_dict(
     afftdn_slider: str,
     afftdn_nf_slider: str,
     output_format: str,
+    mp3_bitrate: str,
 ) -> dict:
     return options_from_form({
         "denoise": denoise,
@@ -192,6 +193,7 @@ def _pipeline_form_dict(
         "afftdn_slider": afftdn_slider,
         "afftdn_nf_slider": afftdn_nf_slider,
         "output_format": output_format,
+        "mp3_bitrate": mp3_bitrate,
     })
 
 
@@ -436,6 +438,7 @@ async def process_files(
     afftdn_slider: str = Form("50"),
     afftdn_nf_slider: str = Form("50"),
     output_format: str = Form("wav"),
+    mp3_bitrate: str = Form("320"),
     _: None = Depends(verify_auth),
 ) -> HTMLResponse:
     options = _pipeline_form_dict(
@@ -443,7 +446,7 @@ async def process_files(
         compand=compand, compand_intensity=compand_intensity, loudnorm=loudnorm,
         enhance=enhance, enhance_lowpass=enhance_lowpass, resample_441=resample_441,
         afftdn_slider=afftdn_slider, afftdn_nf_slider=afftdn_nf_slider,
-        output_format=output_format,
+        output_format=output_format, mp3_bitrate=mp3_bitrate,
     )
 
     if options.get("enhance") and not ENHANCE_AVAILABLE:
@@ -494,6 +497,7 @@ async def process_cue(
     afftdn_slider: str = Form("50"),
     afftdn_nf_slider: str = Form("50"),
     output_format: str = Form("wav"),
+    mp3_bitrate: str = Form("320"),
     _: None = Depends(verify_auth),
 ) -> HTMLResponse:
     cue_path = INPUT_DIR / Path(cue_name).name
@@ -513,7 +517,7 @@ async def process_cue(
         compand=compand, compand_intensity=compand_intensity, loudnorm=loudnorm,
         enhance=enhance, enhance_lowpass=enhance_lowpass, resample_441=resample_441,
         afftdn_slider=afftdn_slider, afftdn_nf_slider=afftdn_nf_slider,
-        output_format=output_format,
+        output_format=output_format, mp3_bitrate=mp3_bitrate,
     )
 
     if pipeline.get("enhance") and not ENHANCE_AVAILABLE:

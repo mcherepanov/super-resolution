@@ -8,6 +8,13 @@ from typing import Any
 DENOISE_OPS = frozenset({"afftdn", "anlmdn"})
 EQ_OPS = frozenset({"highpass", "lowpass", "both"})
 OUTPUT_FORMATS = frozenset({"wav", "mp3", "flac", "m4a"})
+MP3_BITRATES = frozenset({128, 192, 256, 320})
+MP3_BITRATE_DEFAULT = 320
+
+
+def _parse_mp3_bitrate(val: Any) -> int:
+    n = _clamp_int(val, 128, 320, MP3_BITRATE_DEFAULT)
+    return n if n in MP3_BITRATES else MP3_BITRATE_DEFAULT
 
 
 def _clamp_int(val: Any, lo: int, hi: int, default: int) -> int:
@@ -56,6 +63,7 @@ def parse_options(raw: str | dict[str, Any] | None) -> dict[str, Any]:
         "enhance_lowpass": bool(data.get("enhance_lowpass")),
         "resample_441": bool(data.get("resample_441", True)),
         "output_format": out_fmt,
+        "mp3_bitrate": _parse_mp3_bitrate(data.get("mp3_bitrate", MP3_BITRATE_DEFAULT)),
     }
 
 
@@ -96,7 +104,11 @@ def options_summary(opts: dict[str, Any]) -> str:
         parts.append("44.1k")
     else:
         parts.append("48k")
-    parts.append(opts.get("output_format", "wav"))
+    out_fmt = opts.get("output_format", "wav")
+    if out_fmt == "mp3":
+        parts.append(f"mp3 {opts.get('mp3_bitrate', MP3_BITRATE_DEFAULT)}k")
+    else:
+        parts.append(out_fmt)
     return ", ".join(parts) if parts else "—"
 
 
@@ -124,4 +136,5 @@ def options_from_form(form: dict[str, str]) -> dict[str, Any]:
         ),
         "resample_441": form.get("resample_441", "on") in ("on", "1", "true"),
         "output_format": form.get("output_format", "wav"),
+        "mp3_bitrate": _parse_mp3_bitrate(form.get("mp3_bitrate", str(MP3_BITRATE_DEFAULT))),
     }

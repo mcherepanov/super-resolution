@@ -210,7 +210,12 @@ def run_pipeline(
         if out_fmt == "wav":
             shutil.move(str(pcm_for_export), str(dst))
         else:
-            export_audio(pcm_for_export, dst, out_fmt)
+            export_audio(
+                pcm_for_export,
+                dst,
+                out_fmt,
+                mp3_bitrate=opts.get("mp3_bitrate", 320),
+            )
         if progress is not None:
             progress.complete_step(f"Экспорт {out_fmt}")
 

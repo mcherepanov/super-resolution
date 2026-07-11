@@ -181,12 +181,28 @@
     if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel || document));
   });
 
+  function initExportFormat(root) {
+    const scope = root || document;
+    scope.querySelectorAll('select[name="output_format"]').forEach(function (sel) {
+      const fieldset = sel.closest("fieldset");
+      const brRow = fieldset && fieldset.querySelector(".mp3-bitrate-row");
+      function sync() {
+        if (brRow) brRow.classList.toggle("hidden", sel.value !== "mp3");
+      }
+      if (sel.dataset.fmtBound) return;
+      sel.dataset.fmtBound = "1";
+      sel.addEventListener("change", sync);
+      sync();
+    });
+  }
+
   document.body.addEventListener("htmx:afterSwap", function (ev) {
     const target = ev.detail && ev.detail.target;
     if (!target) return;
     if (target.id === "process-panel") {
       tryCueToastFromPayload();
       initSrSwitch(target);
+      initExportFormat(target);
       const selBtn = target.querySelector(".btn-select-all-files");
       if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(target));
       syncDeleteSelectedButton(target);
@@ -218,6 +234,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     tryCueToastFromPayload();
     initSrSwitch(document);
+    initExportFormat(document);
     const panel = document.getElementById("process-panel");
     const selBtn = panel && panel.querySelector(".btn-select-all-files");
     if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel));

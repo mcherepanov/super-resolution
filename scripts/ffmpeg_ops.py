@@ -104,7 +104,13 @@ def build_eq_filter(eq: str, highpass_hz: int, lowpass_hz: int) -> str:
     return ",".join(parts)
 
 
-def export_audio(src: Path, dst: Path, fmt: str) -> None:
+def export_audio(
+    src: Path,
+    dst: Path,
+    fmt: str,
+    *,
+    mp3_bitrate: int = 320,
+) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     ext = dst.suffix.lower().lstrip(".")
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(src), "-y"]
@@ -113,7 +119,8 @@ def export_audio(src: Path, dst: Path, fmt: str) -> None:
     elif fmt == "flac":
         cmd += ["-c:a", "flac"]
     elif fmt == "mp3":
-        cmd += ["-c:a", "libmp3lame", "-q:a", "2"]
+        br = mp3_bitrate if mp3_bitrate in (128, 192, 256, 320) else 320
+        cmd += ["-c:a", "libmp3lame", "-b:a", f"{br}k"]
     elif fmt == "m4a":
         cmd += ["-c:a", "aac", "-b:a", "256k"]
     else:
