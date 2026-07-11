@@ -451,6 +451,24 @@ a:hover {
   overflow-y: auto;
 }
 
+.file-checklist-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.file-checklist-toolbar .btn--tonal {
+  min-height: 32px;
+  padding: 0 0.85rem;
+  font-size: 0.8125rem;
+}
+
+.btn-delete-all-files {
+  font-size: 0.8125rem;
+}
+
 .file-checklist-row {
   display: flex;
   align-items: center;

@@ -358,6 +358,39 @@ async def delete_input_file(
     )
 
 
+@app.post("/input/delete-all", response_class=HTMLResponse)
+async def delete_all_input_files(
+    request: Request,
+    _: None = Depends(verify_auth),
+) -> HTMLResponse:
+    deleted = skipped = 0
+    for f in _list_input_files():
+        if f.get("delete_busy"):
+            skipped += 1
+            continue
+        path = (INPUT_DIR / str(f["name"])).resolve()
+        if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+            continue
+        if path.parent.resolve() != INPUT_DIR.resolve():
+            continue
+        path.unlink()
+        deleted += 1
+
+    if deleted and skipped:
+        flash = f"Удалено из input/: {deleted}, пропущено (в очереди): {skipped}"
+    elif deleted:
+        flash = f"Удалено из input/: {deleted}"
+    elif skipped:
+        flash = f"Все файлы в очереди или обрабатываются — удаление отменено ({skipped})"
+    else:
+        flash = "Нет файлов для удаления"
+
+    return templates.TemplateResponse(
+        "process_panel.html",
+        _panel_ctx(request, flash=flash),
+    )
+
+
 @app.post("/upload", response_class=HTMLResponse)
 async def upload(
     request: Request,

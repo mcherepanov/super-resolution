@@ -140,6 +140,32 @@
     syncDeleteButtons();
   }
 
+  function initFileChecklist(root) {
+    const scope = root || document;
+    const btn = scope.querySelector(".btn-select-all-files");
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", function () {
+      const boxes = document.querySelectorAll(
+        'input[name="filenames"][form="process-form"]'
+      );
+      const allChecked = boxes.length > 0 &&
+        Array.from(boxes).every(function (cb) { return cb.checked; });
+      boxes.forEach(function (cb) { cb.checked = !allChecked; });
+      btn.textContent = allChecked ? "Выделить все" : "Снять выделение";
+    });
+  }
+
+  function syncDeleteAllButton() {
+    const delAll = document.querySelector(".btn-delete-all-files");
+    if (!delAll) return;
+    const deletable = document.querySelectorAll(
+      ".file-checklist-row .btn-delete-file:not(.btn-delete-all-files):not(:disabled)"
+    ).length;
+    delAll.disabled = deletable === 0;
+    delAll.title = deletable === 0 ? "Нет файлов для удаления" : "";
+  }
+
   function syncDeleteButtons() {
     fetch("/input/busy-files")
       .then(function (res) {
@@ -157,6 +183,7 @@
           btn.title = isBusy ? "В очереди или обрабатывается" : "";
           btn.classList.toggle("btn-delete-file--busy", isBusy);
         });
+        syncDeleteAllButton();
       })
       .catch(function () { /* ignore */ });
   }
@@ -167,6 +194,7 @@
     if (target.id === "process-panel") {
       tryCueToastFromPayload();
       initSrSwitch(target);
+      initFileChecklist(target);
       syncDeleteButtons();
     }
     if (target.id === "jobs-panel") scanJobsTable(target);
@@ -196,6 +224,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     tryCueToastFromPayload();
     initSrSwitch(document);
+    initFileChecklist(document);
     const panel = document.getElementById("jobs-panel");
     if (panel) scanJobsTable(panel);
     else syncDeleteButtons();
