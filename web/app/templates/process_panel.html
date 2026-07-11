@@ -11,16 +11,16 @@
   <div class="file-checklist-head">
     <span class="file-checklist-head__title">Файлы в input/</span>
     {% if input_files %}
-    {% set deletable_count = input_files | rejectattr('delete_busy') | list | length %}
     <div class="file-checklist-toolbar">
       <button type="button" class="file-checklist-toolbar__btn btn-select-all-files">Выделить все</button>
-      <button type="button" class="file-checklist-toolbar__btn file-checklist-toolbar__btn--danger btn-delete-all-files"
-              {% if deletable_count == 0 %}disabled title="Нет файлов для удаления"{% endif %}
-              hx-post="/input/delete-all"
+      <button type="button" class="file-checklist-toolbar__btn file-checklist-toolbar__btn--danger btn-delete-selected-files"
+              disabled title="Выберите файлы"
+              hx-post="/input/delete-selected"
               hx-target="#process-panel"
               hx-swap="innerHTML"
-              hx-confirm="Удалить все файлы из input/? (занятые в очереди будут пропущены)">
-        Удалить все
+              hx-include="#file-checklist input[name='filenames']:checked"
+              hx-confirm="Удалить выделенные файлы из input/? (в очереди будут пропущены)">
+        Удалить выделенное
       </button>
     </div>
     {% endif %}
@@ -31,21 +31,10 @@
     {% for f in input_files %}
     <div class="file-checklist-row">
       <label class="check-row">
-        <input type="checkbox" name="filenames" value="{{ f.name }}" form="process-form">
+        <input type="checkbox" name="filenames" value="{{ f.name }}" form="process-form"
+               {% if f.delete_busy %}data-busy="1" title="В очереди или обрабатывается"{% endif %}>
         <span class="file-checklist__name">{{ f.name }}</span>
       </label>
-      <div class="file-delete-wrap">
-        <input type="hidden" name="filename" value="{{ f.name }}">
-        <button type="button" class="btn-delete-file{% if f.delete_busy %} btn-delete-file--busy{% endif %}"
-                {% if f.delete_busy %}disabled title="В очереди или обрабатывается"{% endif %}
-                hx-post="/input/delete"
-                hx-target="#process-panel"
-                hx-swap="innerHTML"
-                hx-include="closest .file-delete-wrap"
-                hx-confirm="Удалить {{ f.name }} из input/?">
-          Удалить
-        </button>
-      </div>
     </div>
     {% endfor %}
     </div>

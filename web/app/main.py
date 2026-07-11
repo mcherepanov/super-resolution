@@ -35,7 +35,10 @@ from db import (  # noqa: E402
 from job_cancel import request_cancel  # noqa: E402
 from download_utils import (  # noqa: E402
     DownloadError,
+    cleanup_after_batch_download,
     cleanup_after_download,
+    count_ready_downloads,
+    prepare_batch_download,
     prepare_download,
 )
 from ffmpeg_ops import INPUT_EXTENSIONS  # noqa: E402
@@ -289,6 +292,9 @@ def startup() -> None:
 
 templates.env.globals["job_options_summary"] = _job_options_summary
 templates.env.globals["enhance_available"] = ENHANCE_AVAILABLE
+templates.env.globals["ready_download_count"] = lambda: count_ready_downloads(
+    list_jobs(), input_dir=INPUT_DIR, output_dir=OUTPUT_DIR,
+)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -321,69 +327,41 @@ def cancel_job(
     )
 
 
-@app.get("/input/busy-files")
-def input_busy_files(_: None = Depends(verify_auth)) -> dict[str, list[str]]:
-    return {
-        "files": [
-            str(f["name"])
-            for f in _list_input_files()
-            if f.get("delete_busy")
-        ],
-    }
-
-
-@app.post("/input/delete", response_class=HTMLResponse)
-async def delete_input_file(
+@app.post("/input/delete-selected", response_class=HTMLResponse)
+async def delete_selected_input_files(
     request: Request,
-    filename: str = Form(...),
+    filenames: list[str] = Form(default=[]),
     _: None = Depends(verify_auth),
 ) -> HTMLResponse:
-    name = Path(filename).name
-    path = (INPUT_DIR / name).resolve()
-    flash: str | None = None
-
-    if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
-        flash = f"Файл не найден: {name}"
-    elif path.parent.resolve() != INPUT_DIR.resolve():
-        flash = "Недопустимый путь"
-    elif has_active_job_for_input(str(path)):
-        flash = f"«{name}» в очереди или обрабатывается — удаление отменено"
+    if not filenames:
+        flash = "Выберите файлы для удаления"
     else:
-        path.unlink()
-        flash = f"Удалено из input/: {name}"
+        deleted = skipped = 0
+        seen: set[str] = set()
+        for raw in filenames:
+            name = Path(raw).name
+            if name in seen:
+                continue
+            seen.add(name)
+            path = (INPUT_DIR / name).resolve()
+            if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+                continue
+            if path.parent.resolve() != INPUT_DIR.resolve():
+                continue
+            if has_active_job_for_input(str(path)):
+                skipped += 1
+                continue
+            path.unlink()
+            deleted += 1
 
-    return templates.TemplateResponse(
-        "process_panel.html",
-        _panel_ctx(request, flash=flash),
-    )
-
-
-@app.post("/input/delete-all", response_class=HTMLResponse)
-async def delete_all_input_files(
-    request: Request,
-    _: None = Depends(verify_auth),
-) -> HTMLResponse:
-    deleted = skipped = 0
-    for f in _list_input_files():
-        if f.get("delete_busy"):
-            skipped += 1
-            continue
-        path = (INPUT_DIR / str(f["name"])).resolve()
-        if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
-            continue
-        if path.parent.resolve() != INPUT_DIR.resolve():
-            continue
-        path.unlink()
-        deleted += 1
-
-    if deleted and skipped:
-        flash = f"Удалено из input/: {deleted}, пропущено (в очереди): {skipped}"
-    elif deleted:
-        flash = f"Удалено из input/: {deleted}"
-    elif skipped:
-        flash = f"Все файлы в очереди или обрабатываются — удаление отменено ({skipped})"
-    else:
-        flash = "Нет файлов для удаления"
+        if deleted and skipped:
+            flash = f"Удалено из input/: {deleted}, пропущено (в очереди): {skipped}"
+        elif deleted:
+            flash = f"Удалено из input/: {deleted}"
+        elif skipped:
+            flash = "Выделенные файлы в очереди или обрабатываются — удаление отменено"
+        else:
+            flash = "Не удалось удалить выделенные файлы"
 
     return templates.TemplateResponse(
         "process_panel.html",
@@ -573,6 +551,30 @@ async def process_cue(
         "jobs_table.html",
         {"request": request, "jobs": list_jobs(), "flash": f"В очередь: {queued}"},
     )
+
+
+@app.post("/download/ready")
+def download_ready(
+    background_tasks: BackgroundTasks,
+    delete_after: str = Form(""),
+    _: None = Depends(verify_auth),
+) -> FileResponse:
+    jobs = list_jobs()
+    try:
+        batch = prepare_batch_download(
+            jobs, input_dir=INPUT_DIR, output_dir=OUTPUT_DIR,
+        )
+    except DownloadError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    do_delete = delete_after == "on"
+    background_tasks.add_task(
+        cleanup_after_batch_download,
+        batch,
+        delete_artifacts=do_delete,
+        delete_job_fn=delete_job,
+    )
+    return FileResponse(batch.path, filename=batch.filename)
 
 
 @app.post("/download/{job_id}")

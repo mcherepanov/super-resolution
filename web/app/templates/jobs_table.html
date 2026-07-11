@@ -1,6 +1,18 @@
 {% if flash %}
 <p class="flash">{{ flash }}</p>
 {% endif %}
+<div class="jobs-batch-dl">
+  <form method="post" action="/download/ready" target="_blank" class="download-form download-form--batch">
+    <button type="submit" class="btn-dl btn-dl--batch"
+            {% if ready_download_count() == 0 %}disabled title="Нет готовых задач"{% endif %}>
+      Скачать все готовые (ZIP)
+    </button>
+    <label class="download-del" title="Удалить из output после скачивания">
+      <input type="checkbox" name="delete_after" value="on" checked>
+      <span>удалить из output</span>
+    </label>
+  </form>
+</div>
 <div class="table-wrap">
 <table>
   <thead>
@@ -58,7 +70,7 @@
           <button type="submit" class="btn-dl">
             {% if job.job_type in ('cue_split', 'cue_batch') %}ZIP{% else %}Скачать{% endif %}
           </button>
-          <label class="download-del" title="Удалить из целевой папки после скачивания">
+          <label class="download-del" title="Удалить из output после скачивания">
             <input type="checkbox" name="delete_after" value="on" checked>
             <span>удалить</span>
           </label>

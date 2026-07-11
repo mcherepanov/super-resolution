@@ -7,6 +7,7 @@ import shutil
 import tempfile
 import zipfile
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 from cue_sheet import parse_cue
@@ -19,6 +20,14 @@ class DownloadPayload:
     temp_zip: Path | None = None
     delete_files: list[Path] = field(default_factory=list)
     delete_dirs: list[Path] = field(default_factory=list)
+
+
+@dataclass
+class BatchDownloadPayload:
+    path: Path
+    filename: str
+    temp_zip: Path
+    cleanup: list[tuple[int, list[Path], list[Path]]]
 
 
 class DownloadError(Exception):
@@ -58,6 +67,17 @@ def _zip_files(files: list[Path], arc_stem: str) -> Path:
     return tmp
 
 
+def _zip_entries(entries: list[tuple[Path, str]]) -> Path:
+    if not entries:
+        raise DownloadError("нет файлов для архива")
+    tmp = Path(tempfile.mkstemp(suffix=".zip")[1])
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+        for src, arc in sorted(entries, key=lambda item: item[1]):
+            if src.is_file():
+                zf.write(src, arcname=arc)
+    return tmp
+
+
 def _batch_output_files(job: dict, output_dir: Path) -> list[Path]:
     opts = job.get("options") or "{}"
     if isinstance(opts, str):
@@ -79,12 +99,15 @@ def _batch_output_files(job: dict, output_dir: Path) -> list[Path]:
     return paths
 
 
-def prepare_download(
+def job_download_artifacts(
     job: dict,
     *,
     input_dir: Path,
     output_dir: Path,
-) -> DownloadPayload:
+) -> tuple[list[tuple[Path, str]], list[Path], list[Path], str]:
+    """
+    Возвращает (zip_entries, delete_files, delete_dirs, download_filename).
+    """
     job_type = job.get("job_type") or "process"
     stem = Path(job["filename"]).stem
 
@@ -92,30 +115,28 @@ def prepare_download(
         folder = Path(job["output_path"])
         if not _safe_under(folder, input_dir):
             raise DownloadError("недопустимый путь")
-        zip_path = _zip_directory(folder, folder.name)
-        return DownloadPayload(
-            path=zip_path,
-            filename=f"{folder.name}.zip",
-            temp_zip=zip_path,
-            delete_dirs=[folder],
-        )
+        files = [p for p in folder.rglob("*") if p.is_file()]
+        if not files:
+            raise DownloadError(f"папка пуста: {folder}")
+        entries = [
+            (f, f"{folder.name}/{f.relative_to(folder).as_posix()}")
+            for f in sorted(files)
+        ]
+        return entries, [], [folder], f"{folder.name}.zip"
 
     if job_type == "cue_batch":
         files = _batch_output_files(job, output_dir)
         for f in files:
             if not _safe_under(f, output_dir):
                 raise DownloadError("недопустимый путь")
-        zip_path = _zip_files(files, stem)
-        marker = Path(job["output_path"])
+        if not files:
+            raise DownloadError("нет файлов для архива")
+        entries = [(f, f"{stem}/{f.name}") for f in files]
         delete_files = list(files)
+        marker = Path(job["output_path"])
         if marker.is_file():
             delete_files.append(marker)
-        return DownloadPayload(
-            path=zip_path,
-            filename=f"{stem}_batch.zip",
-            temp_zip=zip_path,
-            delete_files=delete_files,
-        )
+        return entries, delete_files, [], f"{stem}_batch.zip"
 
     path = Path(job["output_path"])
     if not path.is_file():
@@ -123,10 +144,97 @@ def prepare_download(
     if not _safe_under(path, output_dir):
         raise DownloadError("недопустимый путь")
     out_fmt = job.get("output_format") or path.suffix.lstrip(".")
+    filename = f"{stem}.{out_fmt}"
+    return [(path, filename)], [path], [], filename
+
+
+def count_ready_downloads(
+    jobs: list[dict],
+    *,
+    input_dir: Path,
+    output_dir: Path,
+) -> int:
+    count = 0
+    for job in jobs:
+        if job.get("status") != "done":
+            continue
+        try:
+            job_download_artifacts(job, input_dir=input_dir, output_dir=output_dir)
+        except DownloadError:
+            continue
+        count += 1
+    return count
+
+
+def prepare_download(
+    job: dict,
+    *,
+    input_dir: Path,
+    output_dir: Path,
+) -> DownloadPayload:
+    entries, delete_files, delete_dirs, filename = job_download_artifacts(
+        job, input_dir=input_dir, output_dir=output_dir,
+    )
+    job_type = job.get("job_type") or "process"
+
+    if job_type in ("cue_split", "cue_batch"):
+        zip_path = _zip_entries(entries)
+        return DownloadPayload(
+            path=zip_path,
+            filename=filename,
+            temp_zip=zip_path,
+            delete_files=delete_files,
+            delete_dirs=delete_dirs,
+        )
+
+    path = entries[0][0]
     return DownloadPayload(
         path=path,
-        filename=f"{stem}.{out_fmt}",
-        delete_files=[path],
+        filename=filename,
+        delete_files=delete_files,
+        delete_dirs=delete_dirs,
+    )
+
+
+def prepare_batch_download(
+    jobs: list[dict],
+    *,
+    input_dir: Path,
+    output_dir: Path,
+) -> BatchDownloadPayload:
+    merged: list[tuple[Path, str]] = []
+    cleanup: list[tuple[int, list[Path], list[Path]]] = []
+    used_arcs: set[str] = set()
+
+    for job in jobs:
+        if job.get("status") != "done":
+            continue
+        try:
+            entries, delete_files, delete_dirs, _ = job_download_artifacts(
+                job, input_dir=input_dir, output_dir=output_dir,
+            )
+        except DownloadError:
+            continue
+        if not entries:
+            continue
+        for src, arc in entries:
+            final_arc = arc
+            if final_arc in used_arcs:
+                final_arc = f"{job['id']}_{arc}"
+            used_arcs.add(final_arc)
+            merged.append((src, final_arc))
+        cleanup.append((int(job["id"]), delete_files, delete_dirs))
+
+    if not merged:
+        raise DownloadError("нет готовых файлов для скачивания")
+
+    zip_path = _zip_entries(merged)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    return BatchDownloadPayload(
+        path=zip_path,
+        filename=f"super-resolution_{stamp}.zip",
+        temp_zip=zip_path,
+        cleanup=cleanup,
     )
 
 
@@ -151,3 +259,25 @@ def cleanup_after_download(
             shutil.rmtree(d, ignore_errors=True)
 
     delete_job_fn(job_id)
+
+
+def cleanup_after_batch_download(
+    payload: BatchDownloadPayload,
+    *,
+    delete_artifacts: bool,
+    delete_job_fn,
+) -> None:
+    if payload.temp_zip.exists():
+        payload.temp_zip.unlink(missing_ok=True)
+
+    if not delete_artifacts:
+        return
+
+    for job_id, delete_files, delete_dirs in payload.cleanup:
+        for f in delete_files:
+            if f.exists() and f.is_file():
+                f.unlink(missing_ok=True)
+        for d in delete_dirs:
+            if d.exists() and d.is_dir():
+                shutil.rmtree(d, ignore_errors=True)
+        delete_job_fn(job_id)

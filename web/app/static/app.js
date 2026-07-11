@@ -137,7 +137,6 @@
       jobStatuses.set(id, status);
     }
     jobsSeeded = true;
-    syncDeleteButtons();
   }
 
   function getFileCheckboxes(root) {
@@ -160,39 +159,27 @@
       Array.from(boxes).every(function (cb) { return cb.checked; });
     boxes.forEach(function (cb) { cb.checked = !allChecked; });
     updateSelectAllLabel(btn, boxes);
+    syncDeleteSelectedButton(panel || document);
   });
 
-  function syncDeleteAllButton() {
-    const delAll = document.querySelector(".btn-delete-all-files");
-    if (!delAll) return;
-    const deletable = document.querySelectorAll(
-      "#file-checklist .btn-delete-file:not(:disabled)"
+  function syncDeleteSelectedButton(root) {
+    const scope = root || document;
+    const btn = scope.querySelector(".btn-delete-selected-files");
+    if (!btn) return;
+    const checked = scope.querySelectorAll(
+      "#file-checklist input[name='filenames']:checked"
     ).length;
-    delAll.disabled = deletable === 0;
-    delAll.title = deletable === 0 ? "Нет файлов для удаления" : "";
+    btn.disabled = checked === 0;
+    btn.title = checked === 0 ? "Выберите файлы" : "";
   }
 
-  function syncDeleteButtons() {
-    fetch("/input/busy-files")
-      .then(function (res) {
-        return res.ok ? res.json() : null;
-      })
-      .then(function (data) {
-        if (!data) return;
-        const busy = new Set(data.files || []);
-        document.querySelectorAll(".file-delete-wrap").forEach(function (wrap) {
-          const input = wrap.querySelector('input[name="filename"]');
-          const btn = wrap.querySelector(".btn-delete-file");
-          if (!input || !btn) return;
-          const isBusy = busy.has(input.value);
-          btn.disabled = isBusy;
-          btn.title = isBusy ? "В очереди или обрабатывается" : "";
-          btn.classList.toggle("btn-delete-file--busy", isBusy);
-        });
-        syncDeleteAllButton();
-      })
-      .catch(function () { /* ignore */ });
-  }
+  document.body.addEventListener("change", function (ev) {
+    if (!ev.target.matches("#file-checklist input[name='filenames']")) return;
+    const panel = ev.target.closest("#process-panel");
+    syncDeleteSelectedButton(panel || document);
+    const selBtn = (panel || document).querySelector(".btn-select-all-files");
+    if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel || document));
+  });
 
   document.body.addEventListener("htmx:afterSwap", function (ev) {
     const target = ev.detail && ev.detail.target;
@@ -200,9 +187,9 @@
     if (target.id === "process-panel") {
       tryCueToastFromPayload();
       initSrSwitch(target);
-      syncDeleteButtons();
       const selBtn = target.querySelector(".btn-select-all-files");
       if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(target));
+      syncDeleteSelectedButton(target);
     }
     if (target.id === "jobs-panel") scanJobsTable(target);
   });
@@ -234,8 +221,8 @@
     const panel = document.getElementById("process-panel");
     const selBtn = panel && panel.querySelector(".btn-select-all-files");
     if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel));
+    if (panel) syncDeleteSelectedButton(panel);
     const jobsPanel = document.getElementById("jobs-panel");
     if (jobsPanel) scanJobsTable(jobsPanel);
-    else syncDeleteButtons();
   });
 })();
