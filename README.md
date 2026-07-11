@@ -41,16 +41,20 @@ flowchart LR
   SQLite[("SQLite\njobs")]
   RMQ["RabbitMQ\nsr_jobs"]
   Worker["flashsr GPU\nили worker-mock"]
-  IO["input/ → output/"]
+  IN["input/"]
+  OUT["output/"]
 
-  Browser -->|upload, process| Web
-  Browser -->|jobs partial| Web
+  Browser -->|upload, process,\nудалить выделенное| Web
+  Browser -->|jobs partial,\nскачать POST| Web
   Web --> SQLite
   Web -->|publish job_id| RMQ
   RMQ --> Worker
   Worker --> SQLite
-  Worker --> IO
-  Web --> IO
+  Worker --> IN
+  Worker --> OUT
+  Web --> IN
+  Web -->|ZIP / файл +\nопц. очистка output| OUT
+  Web -->|FileResponse| Browser
 ```
 
 **Режимы worker:**
@@ -78,7 +82,11 @@ flowchart TD
   RS{"44.1 kHz?"}
   R441["ресемпл 44.1"]
   R48["оставить 48"]
-  EXP["Экспорт\nwav flac mp3 m4a"]
+  EXP{"Формат?"}
+  WAV["WAV"]
+  FLAC["FLAC"]
+  MP3["MP3\n128 / 192 / 256 / 320 kbps"]
+  M4A["M4A AAC"]
 
   IN --> DEC --> DN
   DN -->|afftdn| AFF --> EQ
@@ -94,9 +102,15 @@ flowchart TD
   AI -->|нет| RS
   RS -->|да| R441 --> EXP
   RS -->|нет| R48 --> EXP
+  EXP --> WAV
+  EXP --> FLAC
+  EXP --> MP3
+  EXP --> M4A
 ```
 
 После FlashSR результат всегда **48 kHz**; переключатель экспорта задаёт ресемпл в **44.1 kHz** (по умолчанию вкл.) или оставляет 48 kHz — и с AI, и без.
+
+**MP3:** при выборе формата в UI появляется битрейт — **320 kbps** по умолчанию, также **256 / 192 / 128**. Кодирование через `libmp3lame -b:a`.
 
 **CUE sheet** (отдельные типы задач):
 
@@ -112,7 +126,7 @@ flowchart TD
 
 ![Web UI — загрузка, обработка, очередь и история](docs/images/web-ui.png)
 
-*Загрузка в `input/`, цепочка ffmpeg + AI, таблица jobs.*
+*Загрузка в `input/`, цепочка ffmpeg + AI, таблица jobs. Скрин с актуального стенда.*
 
 | Возможность | Описание |
 |-------------|----------|
@@ -120,11 +134,67 @@ flowchart TD
 | Обработка | Чекбоксы файлов, цепочка фильтров, AI, экспорт |
 | Очередь | Таблица jobs, poll 3 с, прогресс-бар при `processing` |
 | Прервать | Кооперативная отмена (`cancelled`) |
-| Скачать | Файл или ZIP; опция удалить артефакты после скачивания |
-| Скачать все готовые | ZIP всех `done` с файлами в output; галочка «удалить из output» |
-| Удалить из input/ | «Удалить выделенное» — только отмеченные чекбоксами; занятые в очереди пропускаются |
-| Toast | CUE при загрузке; завершение job (done/failed/cancelled) |
 | Экспорт SR | Переключатель 44.1 ↔ 48 kHz (работает и с AI) |
+| Экспорт MP3 | Битрейт 320 / 256 / 192 / 128 kbps (по умолчанию 320) |
+| Удалить из input/ | «Выделить все» + «Удалить выделенное» — только отмеченные аудиофайлы; файлы в `queued`/`processing` пропускаются; worker input не трогает |
+| Скачать | Поштучно по строке job (`done`); см. [скачивание](#скачивание-результатов) |
+| Скачать все готовые | Один ZIP всех `done` с артефактами в output |
+| Toast | CUE при загрузке; завершение job (done/failed/cancelled) |
+
+### Удаление из input/
+
+Исходники в `input/` **не удаляются автоматически** после обработки — только вручную через UI.
+
+1. Отметьте чекбоксы у нужных файлов (или «Выделить все»).
+2. Нажмите **«Удалить выделенное»** — `POST /input/delete-selected`.
+3. Файлы, участвующие в активной задаче (`queued` / `processing`), **не удаляются** — в ответе будет «пропущено (в очереди)».
+4. Удаляются только аудио из корня `input/` (не `.cue`).
+
+### Скачивание результатов
+
+Скачивание — это **POST-форма**, а не прямая ссылка: ответ уходит в скрытый `<iframe name="download-frame">`, браузер предлагает сохранить файл. Так же работает и поштучное скачивание, и batch ZIP.
+
+```mermaid
+flowchart TD
+  TBL["Таблица jobs\nтолько status = done"]
+  CHOICE{"Способ"}
+  ONE["Скачать\nв строке job"]
+  BATCH["Скачать все готовые ZIP"]
+  P1["POST /download/job_id"]
+  P2["POST /download/ready"]
+  PREP{"Тип job"}
+  FILE["Один файл\nprocess"]
+  ZIP1["ZIP папки\ncue_split"]
+  ZIP2["ZIP файлов\ncue_batch"]
+  ZIP3["ZIP всех done\nsuper-resolution_ГГГГММДД_ЧЧММСС"]
+  DL["iframe download-frame\n→ сохранение в браузере"]
+  DEL{"Галочка\nудалить из output"}
+  KEEP["Файлы в output/ и\nзапись в SQLite остаются"]
+  CLEAN["Фоново: unlink/rmtree\nартефактов + delete_job"]
+
+  TBL --> CHOICE
+  CHOICE --> ONE --> P1 --> PREP
+  CHOICE --> BATCH --> P2 --> ZIP3
+  PREP --> FILE
+  PREP --> ZIP1
+  PREP --> ZIP2
+  FILE --> DL
+  ZIP1 --> DL
+  ZIP2 --> DL
+  ZIP3 --> DL
+  DL --> DEL
+  DEL -->|снята| KEEP
+  DEL -->|включена по умолчанию| CLEAN
+```
+
+| Что скачивается | `job_type` | Имя архива / файла |
+|-----------------|------------|-------------------|
+| Один обработанный трек | `process` | `<stem>.<format>` |
+| Нарезка по CUE | `cue_split` | `<album_folder>.zip` |
+| Пакет по multi-FILE CUE | `cue_batch` | `<cue_stem>_batch.zip` |
+| Все готовые сразу | любые `done` | `super-resolution_<UTC timestamp>.zip` |
+
+Галочка **«удалить из output»** (по умолчанию включена): после отдачи файла сервер в фоне удаляет соответствующие артефакты из `output/` (и папку `cue_split` в `input/`) и строку job из SQLite. Снятая галочка — только скачивание, данные на диске и в истории остаются.
 
 RabbitMQ Management: http://localhost:15672 (guest/guest)
 
