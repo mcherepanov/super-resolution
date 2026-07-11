@@ -446,8 +446,14 @@ a:hover {
   background: var(--md-sys-color-surface);
 }
 
+.file-checklist-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .file-checklist {
-  max-height: 200px;
+  max-height: 12rem;
   overflow-y: auto;
 }
 
@@ -456,17 +462,38 @@ a:hover {
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
-  margin-bottom: 0.5rem;
+  flex-shrink: 0;
 }
 
-.file-checklist-toolbar .btn--tonal {
-  min-height: 32px;
-  padding: 0 0.85rem;
-  font-size: 0.8125rem;
+.file-checklist-toolbar__btn {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--color-blue-deep);
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.btn-delete-all-files {
-  font-size: 0.8125rem;
+.file-checklist-toolbar__btn:hover:not(:disabled) {
+  background: #e3f2fd;
+}
+
+.file-checklist-toolbar__btn--danger {
+  border-color: var(--color-orange);
+  background: #fff3e0;
+  color: var(--color-orange);
+}
+
+.file-checklist-toolbar__btn--danger:hover:not(:disabled) {
+  background: var(--color-orange);
+  color: #ffffff;
+}
+
+.file-checklist-toolbar__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .file-checklist-row {

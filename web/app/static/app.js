@@ -140,27 +140,33 @@
     syncDeleteButtons();
   }
 
-  function initFileChecklist(root) {
+  function getFileCheckboxes(root) {
     const scope = root || document;
-    const btn = scope.querySelector(".btn-select-all-files");
-    if (!btn || btn.dataset.bound) return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", function () {
-      const boxes = document.querySelectorAll(
-        'input[name="filenames"][form="process-form"]'
-      );
-      const allChecked = boxes.length > 0 &&
-        Array.from(boxes).every(function (cb) { return cb.checked; });
-      boxes.forEach(function (cb) { cb.checked = !allChecked; });
-      btn.textContent = allChecked ? "Выделить все" : "Снять выделение";
-    });
+    return scope.querySelectorAll("#file-checklist input[name='filenames']");
   }
+
+  function updateSelectAllLabel(btn, boxes) {
+    const allChecked = boxes.length > 0 &&
+      Array.from(boxes).every(function (cb) { return cb.checked; });
+    btn.textContent = allChecked ? "Снять выделение" : "Выделить все";
+  }
+
+  document.body.addEventListener("click", function (ev) {
+    const btn = ev.target.closest(".btn-select-all-files");
+    if (!btn) return;
+    const panel = btn.closest("#process-panel");
+    const boxes = getFileCheckboxes(panel || document);
+    const allChecked = boxes.length > 0 &&
+      Array.from(boxes).every(function (cb) { return cb.checked; });
+    boxes.forEach(function (cb) { cb.checked = !allChecked; });
+    updateSelectAllLabel(btn, boxes);
+  });
 
   function syncDeleteAllButton() {
     const delAll = document.querySelector(".btn-delete-all-files");
     if (!delAll) return;
     const deletable = document.querySelectorAll(
-      ".file-checklist-row .btn-delete-file:not(.btn-delete-all-files):not(:disabled)"
+      "#file-checklist .btn-delete-file:not(:disabled)"
     ).length;
     delAll.disabled = deletable === 0;
     delAll.title = deletable === 0 ? "Нет файлов для удаления" : "";
@@ -194,8 +200,9 @@
     if (target.id === "process-panel") {
       tryCueToastFromPayload();
       initSrSwitch(target);
-      initFileChecklist(target);
       syncDeleteButtons();
+      const selBtn = target.querySelector(".btn-select-all-files");
+      if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(target));
     }
     if (target.id === "jobs-panel") scanJobsTable(target);
   });
@@ -224,9 +231,11 @@
   document.addEventListener("DOMContentLoaded", function () {
     tryCueToastFromPayload();
     initSrSwitch(document);
-    initFileChecklist(document);
-    const panel = document.getElementById("jobs-panel");
-    if (panel) scanJobsTable(panel);
+    const panel = document.getElementById("process-panel");
+    const selBtn = panel && panel.querySelector(".btn-select-all-files");
+    if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel));
+    const jobsPanel = document.getElementById("jobs-panel");
+    if (jobsPanel) scanJobsTable(jobsPanel);
     else syncDeleteButtons();
   });
 })();

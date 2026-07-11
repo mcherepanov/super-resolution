@@ -11,18 +11,19 @@
   <legend>Файлы в input/</legend>
   {% if input_files %}
   {% set deletable_count = input_files | rejectattr('delete_busy') | list | length %}
-  <div class="file-checklist-toolbar">
-    <button type="button" class="btn btn--tonal btn-select-all-files">Выделить все</button>
-    <button type="button" class="btn-delete-file btn-delete-all-files"
-            {% if deletable_count == 0 %}disabled title="Нет файлов для удаления"{% endif %}
-            hx-post="/input/delete-all"
-            hx-target="#process-panel"
-            hx-swap="innerHTML"
-            hx-confirm="Удалить все файлы из input/? (занятые в очереди будут пропущены)">
-      Удалить все
-    </button>
-  </div>
-  <div class="file-checklist" id="file-checklist">
+  <div class="file-checklist-panel">
+    <div class="file-checklist-toolbar">
+      <button type="button" class="file-checklist-toolbar__btn btn-select-all-files">Выделить все</button>
+      <button type="button" class="file-checklist-toolbar__btn file-checklist-toolbar__btn--danger btn-delete-all-files"
+              {% if deletable_count == 0 %}disabled title="Нет файлов для удаления"{% endif %}
+              hx-post="/input/delete-all"
+              hx-target="#process-panel"
+              hx-swap="innerHTML"
+              hx-confirm="Удалить все файлы из input/? (занятые в очереди будут пропущены)">
+        Удалить все
+      </button>
+    </div>
+    <div class="file-checklist" id="file-checklist">
     {% for f in input_files %}
     <div class="file-checklist-row">
       <label class="check-row">
@@ -43,6 +44,7 @@
       </div>
     </div>
     {% endfor %}
+    </div>
   </div>
   {% else %}
   <p class="hint">Нет файлов — загрузите выше.</p>
