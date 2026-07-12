@@ -299,6 +299,8 @@ def _safe_ack(ch: Any, delivery_tag: int) -> None:
             ch.basic_ack(delivery_tag=delivery_tag)
     except pika.exceptions.ChannelWrongStateError:
         print("Ack skipped: channel closed (reconnecting)")
+    except pika.exceptions.ChannelClosedByBroker as exc:
+        print(f"Ack skipped: broker closed channel ({exc})")
     except Exception as exc:
         print(f"Ack error: {exc}")
 
@@ -338,6 +340,7 @@ def main() -> None:
         except (
             pika.exceptions.AMQPConnectionError,
             pika.exceptions.ChannelWrongStateError,
+            pika.exceptions.ChannelClosedByBroker,
             pika.exceptions.StreamLostError,
         ) as exc:
             print(f"RabbitMQ not ready ({exc}), retry in 5s...")
