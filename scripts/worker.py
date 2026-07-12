@@ -20,9 +20,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from audio_pipeline import run_pipeline
 from cue_split import run_cue_batch, run_cue_split
-from db import get_job, init_db, try_begin_processing, update_job
+from db import get_job, init_db, try_begin_processing, update_job, utc_now_iso
 from ffmpeg_ops import FfmpegError
 from job_cancel import JobCancelled, job_context
+from messaging import QUEUE_NAME, rabbit_connection_params
+from process_options import parse_options
 from progress import (
     ProgressReporter,
     build_job_progress,
@@ -30,23 +32,12 @@ from progress import (
 )
 
 WEIGHTS_DIR = os.environ.get("WEIGHTS_DIR", "/app/weights")
-QUEUE_NAME = os.environ.get("QUEUE_NAME", "sr_jobs")
 MOCK_MODE = os.environ.get("MOCK_MODE", "").lower() in ("1", "true", "yes")
 _SKIP_STATUSES = frozenset({"done", "failed", "skipped"})
 
 
 def _rabbit_params() -> pika.ConnectionParameters:
-    host = os.environ.get("RABBITMQ_HOST", "rabbitmq")
-    port = int(os.environ.get("RABBITMQ_PORT", "5672"))
-    user = os.environ.get("RABBITMQ_USER", "guest")
-    password = os.environ.get("RABBITMQ_PASSWORD", "guest")
-    return pika.ConnectionParameters(
-        host=host,
-        port=port,
-        credentials=pika.PlainCredentials(user, password),
-        heartbeat=0,
-        blocked_connection_timeout=300,
-    )
+    return rabbit_connection_params(heartbeat=0)
 
 
 def _cleanup_work_files(dst: Path, job_id: int) -> None:
@@ -58,17 +49,11 @@ def _cleanup_work_files(dst: Path, job_id: int) -> None:
 
 
 def _iso_now() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat()
+    return utc_now_iso()
 
 
 def _job_options(job: dict) -> dict:
-    raw = job.get("options")
-    if not raw:
-        return {}
-    if isinstance(raw, str):
-        return json.loads(raw)
-    return dict(raw)
+    return parse_options(job.get("options"))
 
 
 def _cleanup_partial_outputs(paths: list[Path], job_id: int) -> None:
@@ -129,7 +114,7 @@ def _process_pipeline_job(job_id: int, job: dict, model: Any, device: Any) -> No
         job_id,
         src,
         dst,
-        job.get("options"),
+        opts,
         model=model,
         device=device,
         progress=progress,
@@ -216,7 +201,7 @@ def _process_cue_batch_job(job_id: int, job: dict, model: Any, device: Any) -> N
     msg = f"batch {ok}/{total}"
     if errors:
         msg += ": " + "; ".join(errors[:5])
-    status = "done" if ok == total else ("failed" if ok == 0 else "done")
+    status = "done" if ok == total else "failed"
     _finish_job(
         job_id,
         status=status,

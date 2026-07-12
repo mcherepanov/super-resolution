@@ -42,31 +42,6 @@ def _safe_under(path: Path, root: Path) -> bool:
         return False
 
 
-def _zip_directory(src_dir: Path, arc_stem: str) -> Path:
-    if not src_dir.is_dir():
-        raise DownloadError(f"папка не найдена: {src_dir}")
-    files = [p for p in src_dir.rglob("*") if p.is_file()]
-    if not files:
-        raise DownloadError(f"папка пуста: {src_dir}")
-
-    tmp = Path(tempfile.mkstemp(suffix=".zip")[1])
-    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in sorted(files):
-            zf.write(f, arcname=str(Path(arc_stem) / f.relative_to(src_dir)))
-    return tmp
-
-
-def _zip_files(files: list[Path], arc_stem: str) -> Path:
-    existing = [p for p in files if p.is_file()]
-    if not existing:
-        raise DownloadError("нет файлов для архива")
-    tmp = Path(tempfile.mkstemp(suffix=".zip")[1])
-    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in sorted(existing):
-            zf.write(f, arcname=f"{arc_stem}/{f.name}")
-    return tmp
-
-
 def _zip_entries(entries: list[tuple[Path, str]]) -> Path:
     if not entries:
         raise DownloadError("нет файлов для архива")

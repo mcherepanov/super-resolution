@@ -14,8 +14,12 @@ DB_PATH = Path(os.environ.get("DATABASE_PATH", "/app/data/app.db"))
 STATUSES = frozenset({"queued", "processing", "done", "failed", "skipped", "cancelled"})
 
 
-def _now() -> str:
+def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _now() -> str:
+    return utc_now_iso()
 
 
 def get_conn() -> sqlite3.Connection:

@@ -5,10 +5,9 @@ from __future__ import annotations
 import time
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import datetime, timezone
 from typing import Iterator
 
-from db import get_job, update_job
+from db import get_job, update_job, utc_now_iso
 
 _current_job_id: ContextVar[int | None] = ContextVar("current_job_id", default=None)
 
@@ -18,7 +17,7 @@ class JobCancelled(Exception):
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return utc_now_iso()
 
 
 def is_cancel_requested(job_id: int) -> bool:

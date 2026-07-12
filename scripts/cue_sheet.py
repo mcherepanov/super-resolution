@@ -49,9 +49,6 @@ class CueSheet:
     def is_multi_file(self) -> bool:
         return len(self.files) > 1
 
-    def resolved_files(self) -> list[Path]:
-        return [f.resolved for f in self.files if f.resolved is not None]
-
 
 def _read_cue_text(path: Path) -> str:
     raw = path.read_bytes()

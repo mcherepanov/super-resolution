@@ -188,19 +188,6 @@ class JobProgress:
                 eta_str = f" · ETA {remaining / rate:.0f}s"
         self.set_step_progress(sub, f"{detail}{eta_str}")
 
-    def mock_enhance_sleep(self, duration: float, delay: float) -> None:
-        if delay <= 0 or self.reporter is None:
-            return
-        from job_cancel import check_cancel, sleep_cancellable
-
-        self.set_step_progress(0.0, "AI · MOCK")
-        steps = max(3, int(delay))
-        for i in range(1, steps + 1):
-            check_cancel()
-            sleep_cancellable(delay / steps)
-            self.stage_enhance_chunk("MOCK", i, steps, i * delay / steps)
-        self.complete_step("AI · MOCK · готово")
-
 
 def build_job_progress(
     reporter: ProgressReporter | None,

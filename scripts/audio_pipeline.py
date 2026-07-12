@@ -27,7 +27,6 @@ from progress import JobProgress, make_enhance_callback
 
 LOWPASS = os.environ.get("LOWPASS", "").lower() in ("1", "true", "yes")
 MOCK_MODE = os.environ.get("MOCK_MODE", "").lower() in ("1", "true", "yes")
-MOCK_DELAY_SEC = float(os.environ.get("MOCK_DELAY_SEC", "3"))
 
 
 def _work_paths(dst: Path, job_id: int) -> tuple[Path, list[Path]]:
@@ -84,6 +83,8 @@ def run_pipeline(
 
         step_idx = 0
 
+        # Фильтры: явные блоки намеренно (не сворачивать в цикл при рефакторинге).
+        # Порядок этапов, temp-файлы и отладка должны оставаться прозрачными.
         denoise = opts.get("denoise")
         if denoise == "afftdn":
             check_cancel()
@@ -160,35 +161,18 @@ def run_pipeline(
 
             enhanced_dst = _step_path(base, "enhanced")
             temps.append(enhanced_dst)
-            dur_hint, _ = _probe_duration(current)
             check_cancel()
             if progress is not None:
                 progress.set_step_progress(0.0, "AI")
-            if MOCK_MODE:
-                if progress is not None:
-                    delay = min(max(dur_hint * 0.05, MOCK_DELAY_SEC * 0.5), MOCK_DELAY_SEC * 3)
-                    progress.mock_enhance_sleep(dur_hint, delay)
-                else:
-                    from job_cancel import sleep_cancellable
-                    delay = min(max(dur_hint * 0.05, MOCK_DELAY_SEC * 0.5), MOCK_DELAY_SEC * 3)
-                    sleep_cancellable(delay)
-                pcm_for_export = current
-                if want_441:
-                    resampled = _step_path(base, "441")
-                    temps.append(resampled)
-                    resample_wav(current, resampled, OUTPUT_SR)
-                    pcm_for_export = resampled
-                out_sr = export_sr
-            else:
-                enhance_file(
-                    model, current, enhanced_dst,
-                    device=device,
-                    lowpass=bool(opts.get("enhance_lowpass", LOWPASS)),
-                    on_progress=make_enhance_callback(progress),
-                    output_sr=export_sr,
-                )
-                pcm_for_export = enhanced_dst
-                out_sr = export_sr
+            enhance_file(
+                model, current, enhanced_dst,
+                device=device,
+                lowpass=bool(opts.get("enhance_lowpass", LOWPASS)),
+                on_progress=make_enhance_callback(progress),
+                output_sr=export_sr,
+            )
+            pcm_for_export = enhanced_dst
+            out_sr = export_sr
             if progress is not None:
                 progress.complete_step("AI · готово")
         elif want_441:

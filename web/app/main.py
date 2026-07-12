@@ -8,7 +8,6 @@ import secrets
 import sys
 from pathlib import Path
 
-import pika
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -19,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from cue_sheet import (  # noqa: E402
     cue_info_dict,
-    parse_cue,
     split_output_dir,
     validate_cue,
 )
@@ -42,6 +40,7 @@ from download_utils import (  # noqa: E402
     prepare_download,
 )
 from ffmpeg_ops import INPUT_EXTENSIONS  # noqa: E402
+from messaging import publish_job  # noqa: E402
 from process_options import (  # noqa: E402
     has_transformation,
     options_from_form,
@@ -52,7 +51,6 @@ from process_options import (  # noqa: E402
 APP_DIR = Path(__file__).resolve().parent
 INPUT_DIR = Path(os.environ.get("INPUT_DIR", "/app/input"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "/app/output"))
-QUEUE_NAME = os.environ.get("QUEUE_NAME", "sr_jobs")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
 
 
@@ -96,25 +94,7 @@ def verify_auth(credentials: HTTPBasicCredentials | None = Depends(security)) ->
 
 
 def _rabbit_publish(job_id: int) -> None:
-    host = os.environ.get("RABBITMQ_HOST", "rabbitmq")
-    port = int(os.environ.get("RABBITMQ_PORT", "5672"))
-    user = os.environ.get("RABBITMQ_USER", "guest")
-    password = os.environ.get("RABBITMQ_PASSWORD", "guest")
-    params = pika.ConnectionParameters(
-        host=host,
-        port=port,
-        credentials=pika.PlainCredentials(user, password),
-    )
-    connection = pika.BlockingConnection(params)
-    channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_NAME, durable=True)
-    channel.basic_publish(
-        exchange="",
-        routing_key=QUEUE_NAME,
-        body=json.dumps({"job_id": job_id}),
-        properties=pika.BasicProperties(delivery_mode=2),
-    )
-    connection.close()
+    publish_job(job_id)
 
 
 def _output_path_for(input_path: Path, output_format: str) -> Path:
@@ -257,7 +237,7 @@ def _enqueue_cue_batch(cue_path: Path, pipeline: dict) -> int | None:
         cue_path.name,
         str_cue,
         marker,
-        options={"pipeline": pipeline, "cue_path": str_cue},
+        options={"pipeline": pipeline},
         output_format=pipeline.get("output_format", "wav"),
         job_type="cue_batch",
     )

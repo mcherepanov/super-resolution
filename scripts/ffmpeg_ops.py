@@ -10,7 +10,6 @@ TARGET_SR = 48_000
 OUTPUT_SR = 44_100
 
 INPUT_EXTENSIONS = {".wav", ".flac", ".mp3", ".ogg", ".opus", ".ape", ".m4a"}
-OUTPUT_FORMATS = {"wav", "mp3", "flac", "m4a"}
 
 COMPAND_POINTS = "-70/-60|-60/-20|-20/-14|-14/-10|-10/-5"
 

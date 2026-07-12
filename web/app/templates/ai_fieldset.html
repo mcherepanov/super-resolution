@@ -6,7 +6,7 @@
   <legend>{{ ai_legend }}</legend>
   <div class="option-line">
     <label class="check-row">
-      <input type="checkbox" name="enhance" value="on" class="enhance-cb"{% if enhance_cb_id %} id="{{ enhance_cb_id }}"{% endif %}>
+      <input type="checkbox" name="enhance" value="on" class="enhance-cb">
       <span>С AI-улучшением (FlashSR, завершающий этап)</span>
     </label>
     {{ tip("Восстанавливает высокие частоты нейросетью. Основная функция проекта; для чистого CD-рипа можно выключить и оставить только перекодирование.") }}
