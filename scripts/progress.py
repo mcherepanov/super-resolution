@@ -7,7 +7,6 @@ import time
 from typing import Any, Callable
 
 from db import update_job
-from rabbit_keepalive import pump_events
 
 BAR_LEN = 40
 DB_THROTTLE_SEC = 1.0
@@ -44,7 +43,6 @@ def update_job_progress(
     state["t"] = now
     state["detail"] = detail
     state["pct"] = pct
-    pump_events()
 
 
 class ProgressReporter:

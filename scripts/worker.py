@@ -28,7 +28,6 @@ from progress import (
     build_job_progress,
     clear_job_progress_state,
 )
-from rabbit_keepalive import clear_connection, set_connection
 
 WEIGHTS_DIR = os.environ.get("WEIGHTS_DIR", "/app/weights")
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "sr_jobs")
@@ -309,6 +308,16 @@ def _load_model() -> tuple[Any, Any]:
     return model, dev
 
 
+def _safe_ack(ch: Any, delivery_tag: int) -> None:
+    try:
+        if ch.is_open:
+            ch.basic_ack(delivery_tag=delivery_tag)
+    except pika.exceptions.ChannelWrongStateError:
+        print("Ack skipped: channel closed (reconnecting)")
+    except Exception as exc:
+        print(f"Ack error: {exc}")
+
+
 def main() -> None:
     init_db()
 
@@ -324,7 +333,6 @@ def main() -> None:
         connection = None
         try:
             connection = pika.BlockingConnection(_rabbit_params())
-            set_connection(connection)
             channel = connection.channel()
             channel.queue_declare(queue=QUEUE_NAME, durable=True)
             channel.basic_qos(prefetch_count=1)
@@ -337,16 +345,19 @@ def main() -> None:
                 except Exception as exc:
                     print(f"Message error: {exc}")
                 finally:
-                    ch.basic_ack(delivery_tag=method.delivery_tag)
+                    _safe_ack(ch, method.delivery_tag)
 
             channel.basic_consume(queue=QUEUE_NAME, on_message_callback=on_message)
             print(f"Waiting for messages on queue '{QUEUE_NAME}'...")
             channel.start_consuming()
-        except pika.exceptions.AMQPConnectionError as exc:
+        except (
+            pika.exceptions.AMQPConnectionError,
+            pika.exceptions.ChannelWrongStateError,
+            pika.exceptions.StreamLostError,
+        ) as exc:
             print(f"RabbitMQ not ready ({exc}), retry in 5s...")
             time.sleep(5)
         finally:
-            clear_connection()
             if connection is not None and not connection.is_closed:
                 try:
                     connection.close()

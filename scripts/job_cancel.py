@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from typing import Iterator
 
 from db import get_job, update_job
-from rabbit_keepalive import pump_events
 
 _current_job_id: ContextVar[int | None] = ContextVar("current_job_id", default=None)
 
@@ -85,7 +84,6 @@ def sleep_cancellable(seconds: float, *, step: float = 0.25) -> None:
     deadline = time.monotonic() + seconds
     while True:
         check_cancel()
-        pump_events()
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return
