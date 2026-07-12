@@ -1,5 +1,6 @@
 (function () {
   const CUE_STORAGE_KEY = "cue_info_shown";
+  const UI_MODE_KEY = "sr_ui_expert_mode";
   const TOAST_MS = 5000;
   const ACTIVE = new Set(["queued", "processing"]);
 
@@ -181,6 +182,36 @@
     if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel || document));
   });
 
+  function initUiMode() {
+    const cb = document.getElementById("ui-mode-expert");
+    const panel = document.getElementById("process-panel");
+    if (!cb || !panel) return;
+    const card = panel.closest(".card--process");
+    if (!card) return;
+
+    function apply() {
+      const expert = cb.checked;
+      card.querySelectorAll(".expert-only").forEach(function (el) {
+        el.classList.toggle("hidden", !expert);
+      });
+      card.querySelectorAll(".ui-mode-simple-hint").forEach(function (el) {
+        el.classList.toggle("hidden", expert);
+      });
+    }
+
+    if (!cb.dataset.uiModeBound) {
+      cb.dataset.uiModeBound = "1";
+      const saved = localStorage.getItem(UI_MODE_KEY);
+      cb.checked = saved === "1";
+      cb.addEventListener("change", function () {
+        localStorage.setItem(UI_MODE_KEY, cb.checked ? "1" : "0");
+        apply();
+      });
+    }
+
+    apply();
+  }
+
   function initExportFormat(root) {
     const scope = root || document;
     scope.querySelectorAll('select[name="output_format"]').forEach(function (sel) {
@@ -203,6 +234,7 @@
       tryCueToastFromPayload();
       initSrSwitch(target);
       initExportFormat(target);
+      initUiMode();
       const selBtn = target.querySelector(".btn-select-all-files");
       if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(target));
       syncDeleteSelectedButton(target);
@@ -235,6 +267,7 @@
     tryCueToastFromPayload();
     initSrSwitch(document);
     initExportFormat(document);
+    initUiMode();
     const panel = document.getElementById("process-panel");
     const selBtn = panel && panel.querySelector(".btn-select-all-files");
     if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel));

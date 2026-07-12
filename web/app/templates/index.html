@@ -18,9 +18,16 @@
   </form>
 </section>
 
-<section class="card">
-  <h2 class="card__title">Обработка</h2>
-  <p class="hint">Цепочка: шум → частоты → динамика → нормализация → AI (опция) → экспорт.</p>
+<section class="card card--process">
+  <div class="card__head">
+    <h2 class="card__title card__title--inline">Обработка</h2>
+    <label class="ui-mode-toggle check-row" title="Показать шум, EQ, динамику и нормализацию">
+      <input type="checkbox" id="ui-mode-expert" class="ui-mode-expert-cb">
+      <span>Эксперт</span>
+    </label>
+  </div>
+  <p class="hint expert-only hidden">Цепочка: шум → частоты → динамика → нормализация → AI (опция) → экспорт.</p>
+  <p class="hint ui-mode-simple-hint">AI-улучшение и экспорт в нужный формат.</p>
   <div id="process-panel">
     {% include "process_panel.html" %}
   </div>

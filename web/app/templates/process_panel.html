@@ -49,7 +49,7 @@
       hx-target="#jobs-panel"
       hx-swap="innerHTML">
 
-  <fieldset class="block">
+  <fieldset class="block expert-only hidden">
     <legend>Шумоподавление</legend>
     <label class="radio-row"><input type="radio" name="denoise" value="" checked> Не применять</label>
     <label class="radio-row"><input type="radio" name="denoise" value="afftdn"> afftdn (FFT)</label>
@@ -66,7 +66,7 @@
     </div>
   </fieldset>
 
-  <fieldset class="block">
+  <fieldset class="block expert-only hidden">
     <legend>Частотная фильтрация</legend>
     <label class="radio-row"><input type="radio" name="eq" value="" checked> Не применять</label>
     <label class="radio-row"><input type="radio" name="eq" value="highpass"> Только highpass</label>
@@ -82,7 +82,7 @@
     </div>
   </fieldset>
 
-  <fieldset class="block">
+  <fieldset class="block expert-only hidden">
     <legend>Динамика</legend>
     <label class="check-row">
       <input type="checkbox" name="compand" value="on">
@@ -94,7 +94,7 @@
     </label>
   </fieldset>
 
-  <fieldset class="block">
+  <fieldset class="block expert-only hidden">
     <legend>Нормализация</legend>
     <label class="check-row">
       <input type="checkbox" name="loudnorm" value="on">
