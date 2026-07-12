@@ -723,6 +723,23 @@ a:hover {
   margin-top: 0.25rem;
 }
 
+.export-sr-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.export-sr-line__label {
+  font-size: 0.8125rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.export-sr-line .sr-toggle {
+  margin-left: auto;
+}
+
 .mp3-bitrate-row.hidden {
   display: none;
 }

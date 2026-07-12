@@ -1,12 +1,17 @@
+{% from "opt_tip.html" import tip %}
 <fieldset class="block">
   <legend>Экспорт</legend>
-  <div class="sr-toggle">
+  <div class="export-sr-line">
+    <span class="export-sr-line__label">Частота дискретизации</span>
+    {{ tip("44.1 kHz — как на Audio CD: удобно для музыкальных коллекций и обычных плееров. 48 kHz — стандарт видео/ТВ; после AI FlashSR сигнал уже в 48 kHz — оставьте 48, если не нужна подгонка под CD. Слева на переключателе — 44.1, справа — 48.") }}
+    <div class="sr-toggle">
     <span class="sr-toggle__label sr-toggle__label--active">44.1 kHz</span>
     <label class="sr-toggle__control" title="Частота дискретизации">
       <input type="checkbox" class="sr-toggle__input" aria-label="48 kHz">
       <span class="sr-toggle__track" aria-hidden="true"></span>
     </label>
     <span class="sr-toggle__label">48 kHz</span>
+    </div>
   </div>
   <input type="hidden" name="resample_441" value="on">
   <label class="field-inline export-format-row">Формат выхода
