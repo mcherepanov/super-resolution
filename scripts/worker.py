@@ -28,10 +28,12 @@ from progress import (
     build_job_progress,
     clear_job_progress_state,
 )
+from rabbit_keepalive import clear_connection, set_connection
 
 WEIGHTS_DIR = os.environ.get("WEIGHTS_DIR", "/app/weights")
 QUEUE_NAME = os.environ.get("QUEUE_NAME", "sr_jobs")
 MOCK_MODE = os.environ.get("MOCK_MODE", "").lower() in ("1", "true", "yes")
+_SKIP_STATUSES = frozenset({"done", "failed", "skipped"})
 
 
 def _rabbit_params() -> pika.ConnectionParameters:
@@ -43,7 +45,7 @@ def _rabbit_params() -> pika.ConnectionParameters:
         host=host,
         port=port,
         credentials=pika.PlainCredentials(user, password),
-        heartbeat=600,
+        heartbeat=0,
         blocked_connection_timeout=300,
     )
 
@@ -236,6 +238,15 @@ def process_job(job_id: int, model: Any, device: Any) -> None:
         print(f"Job {job_id}: already cancelled, skip")
         return
 
+    status = job.get("status")
+    if status in _SKIP_STATUSES:
+        if status == "done" and (
+            job.get("progress_pct") is not None or job.get("progress_detail")
+        ):
+            update_job(job_id, progress_pct=None, progress_detail=None)
+        print(f"Job {job_id}: already {status}, skip")
+        return
+
     job_type = job.get("job_type") or "process"
 
     with job_context(job_id):
@@ -310,8 +321,10 @@ def main() -> None:
         model, dev = _load_model()
 
     while True:
+        connection = None
         try:
             connection = pika.BlockingConnection(_rabbit_params())
+            set_connection(connection)
             channel = connection.channel()
             channel.queue_declare(queue=QUEUE_NAME, durable=True)
             channel.basic_qos(prefetch_count=1)
@@ -332,6 +345,13 @@ def main() -> None:
         except pika.exceptions.AMQPConnectionError as exc:
             print(f"RabbitMQ not ready ({exc}), retry in 5s...")
             time.sleep(5)
+        finally:
+            clear_connection()
+            if connection is not None and not connection.is_closed:
+                try:
+                    connection.close()
+                except Exception:
+                    pass
 
 
 if __name__ == "__main__":
