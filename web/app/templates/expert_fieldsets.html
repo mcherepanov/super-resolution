@@ -1,0 +1,142 @@
+{% from "opt_tip.html" import tip %}
+{% set afftdn_sliders = afftdn_sliders if afftdn_sliders is defined else true %}
+{% set compact = compact if compact is defined else false %}
+
+<fieldset class="block expert-only hidden">
+  <legend>Шумоподавление {{ tip("Убирает фоновый шум: шипение, гул, шорох. Включайте для старых кассет, FM-записей и шумных рипов; для чистых CD обычно не нужно.") }}</legend>
+  <div class="option-line">
+    <label class="radio-row">
+      <input type="radio" name="denoise" value="" checked>
+      <span>Не применять</span>
+    </label>
+    {{ tip("Оставить шум как в исходнике. Безопасный выбор по умолчанию.") }}
+  </div>
+  <div class="option-line">
+    <label class="radio-row">
+      <input type="radio" name="denoise" value="afftdn">
+      <span>afftdn (FFT)</span>
+    </label>
+    {{ tip("Универсальное спектральное шумоподавление для ровного фона. Хороший первый вариант, если запись шумная.") }}
+  </div>
+  <div class="option-line">
+    <label class="radio-row">
+      <input type="radio" name="denoise" value="anlmdn">
+      <span>anlmdn (по профилю)</span>
+    </label>
+    {{ tip("Лучше на щелчках и импульсных артефактах; обработка дольше. Пробуйте, если afftdn «плывёт» или остаются всплески.") }}
+  </div>
+  {% if afftdn_sliders %}
+  <div id="afftdn-params" class="sub-params hidden">
+    <label class="slider-row">
+      <span class="slider-row__head">
+        <span class="slider-row__label">Интенсивность (nr)</span>
+        {{ tip("Сила подавления. Выше — тише фон, но выше риск «подводного» или металлического звука.") }}
+      </span>
+      <input type="range" name="afftdn_slider" min="0" max="100" value="50">
+    </label>
+    <label class="slider-row">
+      <span class="slider-row__head">
+        <span class="slider-row__label">Порог шума (nf)</span>
+        {{ tip("Что считать шумом. Левее — агрессивнее, правее — мягче, больше фона останется.") }}
+      </span>
+      <input type="range" name="afftdn_nf_slider" min="0" max="100" value="50">
+    </label>
+  </div>
+  {% endif %}
+</fieldset>
+
+<fieldset class="block expert-only hidden">
+  <legend>Частотная фильтрация {{ tip("Обрезает очень низкие или высокие частоты. Для большинства музыкальных рипов оставьте «Не применять».") }}</legend>
+  <div class="option-line">
+    <label class="radio-row">
+      <input type="radio" name="eq" value="" checked>
+      <span>Не применять</span>
+    </label>
+    {{ tip("Без изменения спектра. Рекомендуется, если не знаете, зачем нужен срез.") }}
+  </div>
+  <div class="option-line">
+    <label class="radio-row">
+      <input type="radio" name="eq" value="highpass">
+      <span>Только highpass</span>
+    </label>
+    {{ tip("Убирает низы: гул, рокот, удары по столу. Полезно для винила, кассеты, оцифровки с гулом.") }}
+  </div>
+  <div class="option-line">
+    <label class="radio-row">
+      <input type="radio" name="eq" value="lowpass">
+      <span>Только lowpass</span>
+    </label>
+    {{ tip("Убирает верха: свист, резкое шипение. На музыке редко нужно; чаще для узкополосных записей.") }}
+  </div>
+  <div class="option-line">
+    <label class="radio-row">
+      <input type="radio" name="eq" value="both">
+      <span>Highpass + lowpass</span>
+    </label>
+    {{ tip("Срез и снизу, и сверху — узкая полоса. Экзотический случай, легко переборщить.") }}
+  </div>
+  <div class="sub-params">
+    <div class="field-inline-line">
+      <label class="field-inline">Highpass, Hz
+        <input type="number" name="highpass_hz" value="80" min="20" max="500" class="num-input">
+      </label>
+      {{ tip("Частота среза низов. 80 Гц — типичный старт: гул уходит, бас и голос остаются.") }}
+    </div>
+    <div class="field-inline-line">
+      <label class="field-inline">Lowpass, Hz
+        <input type="number" name="lowpass_hz" value="10000" min="1000" max="20000" class="num-input">
+      </label>
+      {{ tip("Частота среза верхов. 10 кГц — мягко; ниже — звук заметно «тусклее».") }}
+    </div>
+  </div>
+</fieldset>
+
+{% if compact %}
+<fieldset class="block expert-only hidden">
+  <legend>Динамика / нормализация {{ tip("Сжатие динамики и выравнивание громкости. Для архивной обработки обычно не обязательно.") }}</legend>
+  <div class="option-line">
+    <label class="check-row">
+      <input type="checkbox" name="compand" value="on">
+      <span>Компрессор (compand)</span>
+    </label>
+    {{ tip("Сжимает разброс «тихое ↔ громкое». Включайте, если трек скачет по громкости между частями.") }}
+  </div>
+  <input type="hidden" name="compand_intensity" value="50">
+  <div class="option-line">
+    <label class="check-row">
+      <input type="checkbox" name="loudnorm" value="on">
+      <span>Нормализация по пикам (loudnorm)</span>
+    </label>
+    {{ tip("Подгоняет пики к одному уровню. Полезно, если файл слишком тихий; может уменьшить «живую» динамику.") }}
+  </div>
+</fieldset>
+{% else %}
+<fieldset class="block expert-only hidden">
+  <legend>Динамика {{ tip("Работа с разницей между тихими и громкими фрагментами. Не обязательна для обычного апскейла.") }}</legend>
+  <div class="option-line">
+    <label class="check-row">
+      <input type="checkbox" name="compand" value="on">
+      <span>Компрессор (compand)</span>
+    </label>
+    {{ tip("Делает тихие места громче, громкие — сдержаннее. Если трек не «скачет» — оставьте выключенным.") }}
+  </div>
+  <label class="slider-row">
+    <span class="slider-row__head">
+      <span class="slider-row__label">Интенсивность</span>
+      {{ tip("Насколько сильно сжимать. Середина — умеренно; к краям — заметнее, но риск пережать.") }}
+    </span>
+    <input type="range" name="compand_intensity" min="0" max="100" value="50">
+  </label>
+</fieldset>
+
+<fieldset class="block expert-only hidden">
+  <legend>Нормализация {{ tip("Выравнивание общей громкости. Не то же самое, что нормализация LUFS для Spotify.") }}</legend>
+  <div class="option-line">
+    <label class="check-row">
+      <input type="checkbox" name="loudnorm" value="on">
+      <span>Нормализация по пикам (loudnorm)</span>
+    </label>
+    {{ tip("Выравнивает самые громкие пики. Включайте, если результат слишком тихий или с перегрузом по пикам.") }}
+  </div>
+</fieldset>
+{% endif %}

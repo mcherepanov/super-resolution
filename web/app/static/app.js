@@ -182,6 +182,56 @@
     if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel || document));
   });
 
+  function initProcessForms(root) {
+    const scope = root || document;
+    scope.querySelectorAll("#process-form, .cue-form").forEach(function (form) {
+      if (form.dataset.processBound) return;
+      form.dataset.processBound = "1";
+
+      const afftdnBox = form.querySelector("#afftdn-params");
+      const enhanceCb = form.querySelector(".enhance-cb");
+      const lowpassCb = form.querySelector(".enhance-lowpass-cb");
+
+      function syncAfftdn() {
+        if (!afftdnBox) return;
+        const afftdn = form.querySelector('input[name="denoise"][value="afftdn"]');
+        if (afftdn) {
+          afftdnBox.classList.toggle("hidden", !afftdn.checked);
+        }
+      }
+
+      function syncEnhanceLowpass() {
+        if (!lowpassCb) return;
+        const on = enhanceCb && enhanceCb.checked;
+        lowpassCb.disabled = !on;
+        lowpassCb.closest(".enhance-lowpass-row")?.classList.toggle(
+          "enhance-lowpass-row--disabled",
+          !on
+        );
+        if (!on) lowpassCb.checked = false;
+      }
+
+      form.addEventListener("change", function () {
+        syncAfftdn();
+        syncEnhanceLowpass();
+      });
+      syncAfftdn();
+      syncEnhanceLowpass();
+    });
+  }
+
+  function initOptTips(root) {
+    const scope = root || document;
+    scope.querySelectorAll(".opt-tip").forEach(function (btn) {
+      if (btn.dataset.tipBound) return;
+      btn.dataset.tipBound = "1";
+      btn.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    });
+  }
+
   function initUiMode() {
     const cb = document.getElementById("ui-mode-expert");
     const panel = document.getElementById("process-panel");
@@ -235,6 +285,8 @@
       initSrSwitch(target);
       initExportFormat(target);
       initUiMode();
+      initProcessForms(target);
+      initOptTips(target);
       const selBtn = target.querySelector(".btn-select-all-files");
       if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(target));
       syncDeleteSelectedButton(target);
@@ -268,6 +320,8 @@
     initSrSwitch(document);
     initExportFormat(document);
     initUiMode();
+    initProcessForms(document);
+    initOptTips(document);
     const panel = document.getElementById("process-panel");
     const selBtn = panel && panel.querySelector(".btn-select-all-files");
     if (selBtn) updateSelectAllLabel(selBtn, getFileCheckboxes(panel));

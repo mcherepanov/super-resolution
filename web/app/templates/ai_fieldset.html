@@ -1,0 +1,24 @@
+{% from "opt_tip.html" import tip %}
+{% set ai_legend = ai_legend if ai_legend is defined else "AI-улучшение" %}
+
+{% if enhance_available %}
+<fieldset class="block block--highlight">
+  <legend>{{ ai_legend }}</legend>
+  <div class="option-line">
+    <label class="check-row">
+      <input type="checkbox" name="enhance" value="on" class="enhance-cb"{% if enhance_cb_id %} id="{{ enhance_cb_id }}"{% endif %}>
+      <span>С AI-улучшением (FlashSR, завершающий этап)</span>
+    </label>
+    {{ tip("Восстанавливает высокие частоты нейросетью. Основная функция проекта; для чистого CD-рипа можно выключить и оставить только перекодирование.") }}
+  </div>
+  <div class="option-line enhance-lowpass-row">
+    <label class="check-row">
+      <input type="checkbox" name="enhance_lowpass" value="on" class="enhance-lowpass-cb">
+      <span>Lowpass перед AI <span class="hint-inline">(узкополосный вход)</span></span>
+    </label>
+    {{ tip("Срезает верха перед нейросетью. Включайте для узкополосных записей (телефон, сильно сжатый MP3); для нормальной музыки обычно не нужно.") }}
+  </div>
+</fieldset>
+{% else %}
+<p class="hint">Режим «Только обработка» — AI недоступен.</p>
+{% endif %}
