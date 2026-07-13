@@ -38,6 +38,7 @@ services:
     volumes:
       - ./web/app:/app/app
       - ./scripts:/app/scripts
+      - ./version.properties:/app/version.properties:ro
       - ./data:/app/data
       - ${INPUT_DIR:-./input}:/app/input
       - ${OUTPUT_DIR:-./output}:/app/output

@@ -42,6 +42,7 @@ from download_utils import (  # noqa: E402
     prepare_download,
 )
 from mobile_status import build_mobile_status  # noqa: E402
+from version import get_version_info  # noqa: E402
 from mobile_api import (  # noqa: E402
     delete_input_file as mobile_delete_input_file,
     enqueue_process_filenames,
@@ -87,12 +88,14 @@ def _enhance_available() -> bool:
 
 
 ENHANCE_AVAILABLE = _enhance_available()
+APP_VERSION = get_version_info()
 
 AUDIO_EXTENSIONS = INPUT_EXTENSIONS
 CUE_EXTENSION = ".cue"
 
-app = FastAPI(title="Super Resolution")
+app = FastAPI(title="Super Resolution", version=str(APP_VERSION["label"]))
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
+templates.env.globals["app_version_display"] = APP_VERSION["display"]
 security = HTTPBasic(auto_error=False)
 
 
@@ -282,6 +285,18 @@ def jobs_partial(request: Request, _: None = Depends(verify_auth)) -> HTMLRespon
         "jobs_table.html",
         {"request": request, "jobs": list_jobs()},
     )
+
+
+@app.get("/api/version")
+def api_version(_: None = Depends(verify_auth)) -> dict:
+    info = get_version_info()
+    return {
+        "status": "ok",
+        "version": info["version"],
+        "prerelease": info["prerelease"],
+        "build": info["build"],
+        "label": info["label"],
+    }
 
 
 @app.get("/api/mobile-status")

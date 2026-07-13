@@ -11,6 +11,7 @@ import pika
 from db import get_conn
 from messaging import QUEUE_NAME, rabbit_connection_params
 from process_options import job_options_summary
+from version import get_version_info
 
 
 def _rabbit_queue_stats() -> tuple[int, int]:
@@ -102,10 +103,13 @@ def build_mobile_status() -> dict:
     queued = _jobs_queued()
     processing = _jobs_processing()
     queue_size = max(queued, rmq_ready)
+    ver = get_version_info()
 
     return {
         "status": "ok",
         "timestamp": int(time.time()),
+        "app_version": ver["label"],
+        "app_build": ver["build"],
         "queue_size": queue_size,
         "workers_total": consumers,
         "workers_busy": processing,

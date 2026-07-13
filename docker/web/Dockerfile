@@ -10,8 +10,8 @@ COPY web/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY web/app /app/app
-COPY scripts/db.py scripts/messaging.py scripts/mobile_status.py scripts/process_options.py scripts/ffmpeg_ops.py \
-    scripts/cue_sheet.py scripts/download_utils.py /app/scripts/
+COPY scripts /app/scripts
+COPY version.properties /app/version.properties
 
 ENV PYTHONPATH=/app/scripts:/app
 
