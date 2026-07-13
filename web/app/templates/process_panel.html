@@ -29,11 +29,15 @@
     {% if input_files %}
     <div class="file-checklist" id="file-checklist">
     {% for f in input_files %}
-    <div class="file-checklist-row">
+    <div class="file-checklist-row{% if f.corrupted %} file-checklist-row--corrupted{% endif %}">
       <label class="check-row">
-        <input type="checkbox" name="filenames" value="{{ f.name }}" form="process-form"
-               {% if f.delete_busy %}data-busy="1" title="В очереди или обрабатывается"{% endif %}>
+        <input type="checkbox" name="filenames" value="{{ f.name }}"
+               {% if not f.corrupted %}form="process-form"{% endif %}
+               {% if f.corrupted %}data-corrupted="1" title="{{ f.error_message or 'повреждённый файл — только удаление' }}"{% elif f.busy %}disabled data-busy="1" title="В очереди или обрабатывается"{% endif %}>
         <span class="file-checklist__name">{{ f.name }}</span>
+        {% if f.corrupted %}
+        <span class="chip chip--corrupted" title="{{ f.error_message or '' }}">corrupted</span>
+        {% endif %}
       </label>
     </div>
     {% endfor %}

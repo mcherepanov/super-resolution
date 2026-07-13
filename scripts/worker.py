@@ -21,7 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from audio_pipeline import run_pipeline
 from cue_split import run_cue_batch, run_cue_split
 from db import get_job, init_db, try_begin_processing, update_job, utc_now_iso
-from ffmpeg_ops import FfmpegError
+from ffmpeg_ops import FfmpegError, AudioIntegrityError, validate_input_audio
+from input_integrity import record_input_check
 from job_cancel import JobCancelled, job_context
 from messaging import QUEUE_NAME, rabbit_connection_params
 from process_options import parse_options
@@ -100,6 +101,19 @@ def _process_pipeline_job(job_id: int, job: dict, model: Any, device: Any) -> No
             finished_at=_iso_now(),
             error_message=f"input not found: {src}",
         )
+        return
+
+    try:
+        validate_input_audio(src)
+    except AudioIntegrityError as exc:
+        record_input_check(src)
+        _finish_job(
+            job_id,
+            status="failed",
+            finished_at=_iso_now(),
+            error_message=f"битый файл: {exc}"[:2000],
+        )
+        print(f"Job {job_id}: corrupted input — {exc}")
         return
 
     _cleanup_work_files(dst, job_id)

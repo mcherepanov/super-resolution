@@ -142,7 +142,9 @@
 
   function getFileCheckboxes(root) {
     const scope = root || document;
-    return scope.querySelectorAll("#file-checklist input[name='filenames']");
+    return scope.querySelectorAll(
+      "#file-checklist input[name='filenames']:not(:disabled)"
+    );
   }
 
   function updateSelectAllLabel(btn, boxes) {

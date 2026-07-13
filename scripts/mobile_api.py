@@ -10,6 +10,12 @@ from cue_sheet import cue_info_dict, validate_cue
 from db import create_job, get_job, has_active_job, has_active_job_for_input, list_jobs
 from download_utils import DownloadError, job_download_artifacts, prepare_download
 from ffmpeg_ops import INPUT_EXTENSIONS
+from input_integrity import (
+    delete_input_integrity,
+    ensure_input_integrity,
+    is_input_corrupted,
+    record_input_check,
+)
 from messaging import publish_job
 from process_options import has_transformation, job_options_summary, parse_options
 
@@ -45,6 +51,9 @@ def _enqueue_process(input_path: Path, options: dict[str, Any]) -> int | None:
         return None
 
     if has_active_job(str_in, str_out):
+        return None
+
+    if is_input_corrupted(input_path):
         return None
 
     job_id = create_job(
@@ -90,10 +99,13 @@ def list_input_files() -> list[dict[str, Any]]:
     ):
         resolved = str(path.resolve())
         stat = path.stat()
+        integrity = ensure_input_integrity(path)
         files.append({
             "name": path.name,
             "size_bytes": stat.st_size,
             "busy": has_active_job_for_input(resolved),
+            "corrupted": integrity["corrupted"],
+            "error_message": integrity["error_message"],
         })
     return files
 
@@ -103,6 +115,7 @@ async def upload_files(uploads: list[tuple[str, bytes]]) -> dict[str, Any]:
     saved_audio = 0
     errors: list[str] = []
     saved_names: list[str] = []
+    corrupted_names: list[str] = []
     cue_info: dict | None = None
 
     for name, content in uploads:
@@ -127,10 +140,13 @@ async def upload_files(uploads: list[tuple[str, bytes]]) -> dict[str, Any]:
         dest.write_bytes(content)
         saved_audio += 1
         saved_names.append(safe_name)
+        if not record_input_check(dest):
+            corrupted_names.append(safe_name)
 
     return {
         "saved_audio": saved_audio,
         "saved_names": saved_names,
+        "corrupted_names": corrupted_names,
         "errors": errors,
         "cue_info": cue_info,
     }
@@ -147,12 +163,16 @@ def enqueue_process_filenames(
     skipped_missing: list[str] = []
     skipped_noop: list[str] = []
     skipped_busy: list[str] = []
+    skipped_corrupted: list[str] = []
 
     for raw in filenames:
         name = Path(raw).name
         path = INPUT_DIR / name
         if not path.is_file():
             skipped_missing.append(name)
+            continue
+        if is_input_corrupted(path):
+            skipped_corrupted.append(name)
             continue
         if not has_transformation(options, path.suffix):
             skipped_noop.append(name)
@@ -169,6 +189,7 @@ def enqueue_process_filenames(
         "skipped_missing": skipped_missing,
         "skipped_noop": skipped_noop,
         "skipped_busy": skipped_busy,
+        "skipped_corrupted": skipped_corrupted,
     }
 
 
@@ -182,6 +203,7 @@ def delete_input_file(filename: str) -> dict[str, Any]:
     if has_active_job_for_input(str(path)):
         raise ValueError("file busy")
     path.unlink()
+    delete_input_integrity(name)
     return {"deleted": name}
 
 

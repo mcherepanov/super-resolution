@@ -42,6 +42,8 @@
   --status-skipped-fg: #757575;
   --status-cancelled-bg: #fbe9e7;
   --status-cancelled-fg: #d84315;
+  --status-corrupted-bg: #fff8e1;
+  --status-corrupted-fg: #f57f17;
 }
 
 * { box-sizing: border-box; }
@@ -307,6 +309,7 @@ tbody tr:hover {
 .status-failed .chip { background: var(--status-failed-bg); color: var(--status-failed-fg); }
 .status-skipped .chip { background: var(--status-skipped-bg); color: var(--status-skipped-fg); }
 .status-cancelled .chip { background: var(--status-cancelled-bg); color: var(--status-cancelled-fg); }
+.status-corrupted .chip { background: var(--status-corrupted-bg); color: var(--status-corrupted-fg); }
 
 .btn-cancel {
   font-size: 0.75rem;
@@ -391,6 +394,13 @@ a:hover {
   color: var(--md-sys-color-error);
   cursor: help;
   font-size: 0.8125rem;
+}
+
+.corrupted {
+  color: var(--status-corrupted-fg);
+  cursor: help;
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 
 .hint {
@@ -643,6 +653,26 @@ a:hover {
 
 .file-checklist-row .check-row {
   margin: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.file-checklist-row--corrupted .file-checklist__name {
+  color: var(--status-corrupted-fg);
+}
+
+.chip--corrupted {
+  display: inline-block;
+  margin-left: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--md-shape-corner-full);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: lowercase;
+  background: var(--status-corrupted-bg);
+  color: var(--status-corrupted-fg);
+  flex-shrink: 0;
 }
 
 .file-checklist__name {
@@ -783,6 +813,10 @@ a:hover {
 
 .toast--cancelled {
   border-left: 4px solid var(--color-orange);
+}
+
+.toast--corrupted {
+  border-left: 4px solid var(--status-corrupted-fg);
 }
 
 .toast-hint {

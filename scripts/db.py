@@ -76,6 +76,8 @@ def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC)"
         )
         conn.commit()
+    from input_integrity import init_input_integrity
+    init_input_integrity()
 
 
 def create_job(

@@ -18,6 +18,49 @@ class FfmpegError(RuntimeError):
     pass
 
 
+class AudioIntegrityError(RuntimeError):
+    """Входной файл повреждён или не читается целиком."""
+
+
+_SOUNDFILE_VALIDATE_EXTENSIONS = frozenset({".wav", ".flac", ".ogg"})
+
+
+def validate_input_audio(path: Path) -> None:
+    """Полная проверка читаемости файла до обработки."""
+    if not path.is_file():
+        raise AudioIntegrityError(f"файл не найден: {path.name}")
+
+    suffix = path.suffix.lower()
+    if suffix not in INPUT_EXTENSIONS:
+        raise AudioIntegrityError(f"неподдерживаемый формат: {path.name}")
+
+    _run([
+        "ffmpeg", "-hide_banner", "-v", "error", "-xerror",
+        "-i", str(path),
+        "-f", "null", "-",
+    ])
+
+    if suffix not in _SOUNDFILE_VALIDATE_EXTENSIONS:
+        return
+
+    import soundfile as sf
+    from job_cancel import check_cancel
+
+    try:
+        with sf.SoundFile(str(path)) as f:
+            if f.frames <= 0 or f.samplerate <= 0:
+                raise AudioIntegrityError(f"{path.name}: пустой или невалидный файл")
+            block = 65536
+            while True:
+                check_cancel()
+                chunk = f.read(block)
+                if chunk.size == 0:
+                    break
+    except sf.LibsndfileError as exc:
+        msg = str(exc).strip() or "повреждённый аудиофайл"
+        raise AudioIntegrityError(f"{path.name}: {msg}") from exc
+
+
 def _run(cmd: list[str]) -> None:
     from job_cancel import JobCancelled, check_cancel
 

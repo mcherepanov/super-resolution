@@ -52,6 +52,7 @@ from mobile_api import (  # noqa: E402
     upload_files as mobile_upload_files,
 )
 from ffmpeg_ops import INPUT_EXTENSIONS  # noqa: E402
+from input_integrity import delete_input_integrity, is_input_corrupted  # noqa: E402
 from messaging import publish_job  # noqa: E402
 from process_options import (  # noqa: E402
     has_transformation,
@@ -116,20 +117,8 @@ def _output_path_for(input_path: Path, output_format: str) -> Path:
     return OUTPUT_DIR / f"{stem}{ext}"
 
 
-def _list_input_files() -> list[dict[str, str | bool]]:
-    if not INPUT_DIR.exists():
-        return []
-    files: list[dict[str, str | bool]] = []
-    for p in sorted(
-        p for p in INPUT_DIR.iterdir()
-        if p.is_file() and p.suffix.lower() in AUDIO_EXTENSIONS
-    ):
-        resolved = str(p.resolve())
-        files.append({
-            "name": p.name,
-            "delete_busy": has_active_job_for_input(resolved),
-        })
-    return files
+def _list_input_files() -> list[dict]:
+    return mobile_list_input_files()
 
 
 def _list_cue_sheets() -> list[dict]:
@@ -202,6 +191,9 @@ def _enqueue_process(input_path: Path, options: dict) -> int | None:
         return None
 
     if has_active_job(str_in, str_out):
+        return None
+
+    if is_input_corrupted(input_path):
         return None
 
     job_id = create_job(
@@ -434,6 +426,7 @@ async def delete_selected_input_files(
                 skipped += 1
                 continue
             path.unlink()
+            delete_input_integrity(path.name)
             deleted += 1
 
         if deleted and skipped:
@@ -457,46 +450,33 @@ async def upload(
     files: list[UploadFile] = File(...),
     _: None = Depends(verify_auth),
 ) -> HTMLResponse:
-    INPUT_DIR.mkdir(parents=True, exist_ok=True)
-    saved_audio = 0
-    errors: list[str] = []
-    cue_toast: dict | None = None
-
+    uploads: list[tuple[str, bytes]] = []
     for uf in files:
         if not uf.filename:
             continue
-        name = Path(uf.filename).name
-        suffix = Path(name).suffix.lower()
-        dest = INPUT_DIR / name
-        content = await uf.read()
+        uploads.append((uf.filename, await uf.read()))
+    if not uploads:
+        return templates.TemplateResponse(
+            "process_panel.html",
+            _panel_ctx(request, flash="Не выбраны файлы"),
+        )
 
-        if suffix == CUE_EXTENSION:
-            dest.write_bytes(content)
-            ok, missing, sheet = validate_cue(dest, INPUT_DIR)
-            if not ok:
-                errors.append(f"CUE {name}: не найдены — {', '.join(missing)}")
-            elif sheet is not None:
-                cue_toast = cue_info_dict(sheet)
-            continue
-
-        if suffix not in AUDIO_EXTENSIONS:
-            continue
-
-        dest.write_bytes(content)
-        saved_audio += 1
-
+    result = await mobile_upload_files(uploads)
     flash_parts: list[str] = []
-    if saved_audio:
-        flash_parts.append(f"Аудио: {saved_audio}")
-    if errors:
-        flash_parts.extend(errors)
+    if result.get("saved_audio"):
+        flash_parts.append(f"Аудио: {result['saved_audio']}")
+    corrupted = result.get("corrupted_names") or []
+    if corrupted:
+        flash_parts.append(f"corrupted: {', '.join(corrupted)}")
+    if result.get("errors"):
+        flash_parts.extend(result["errors"])
 
     return templates.TemplateResponse(
         "process_panel.html",
         _panel_ctx(
             request,
             flash="; ".join(flash_parts) if flash_parts else None,
-            cue_toast=cue_toast,
+            cue_toast=result.get("cue_info"),
         ),
     )
 
@@ -538,10 +518,13 @@ async def process_files(
             {"request": request, "jobs": list_jobs(), "flash": "Выберите хотя бы один файл"},
         )
 
-    queued = skipped_noop = 0
+    queued = skipped_noop = skipped_corrupted = 0
     for name in filenames:
         path = INPUT_DIR / Path(name).name
         if not path.is_file():
+            continue
+        if is_input_corrupted(path):
+            skipped_corrupted += 1
             continue
         if not has_transformation(parse_options(options), path.suffix):
             skipped_noop += 1
@@ -552,6 +535,8 @@ async def process_files(
     msg = f"В очередь: {queued}"
     if skipped_noop:
         msg += f", без изменений: {skipped_noop}"
+    if skipped_corrupted:
+        msg += f", corrupted (удалите и замените): {skipped_corrupted}"
     return templates.TemplateResponse(
         "jobs_table.html",
         {"request": request, "jobs": list_jobs(), "flash": msg},
