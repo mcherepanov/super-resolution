@@ -34,11 +34,16 @@ def validate_input_audio(path: Path) -> None:
     if suffix not in INPUT_EXTENSIONS:
         raise AudioIntegrityError(f"неподдерживаемый формат: {path.name}")
 
-    _run([
-        "ffmpeg", "-hide_banner", "-v", "error", "-xerror",
-        "-i", str(path),
-        "-f", "null", "-",
-    ])
+    try:
+        _run([
+            "ffmpeg", "-hide_banner", "-v", "error", "-xerror",
+            "-i", str(path),
+            "-f", "null", "-",
+        ])
+    except FfmpegError as exc:
+        tail = str(exc).strip().splitlines()
+        detail = tail[-1][:200] if tail else "повреждённый аудиофайл"
+        raise AudioIntegrityError(f"{path.name}: {detail}") from exc
 
     if suffix not in _SOUNDFILE_VALIDATE_EXTENSIONS:
         return
