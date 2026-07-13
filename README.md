@@ -221,11 +221,13 @@ RabbitMQ Management: http://localhost:15672 (guest/guest)
 
 Опционально: `APP_PASSWORD` — HTTP Basic (логин `admin`).
 
+**Android-клиент** (монитор очереди по Wi‑Fi): отдельный репозиторий [`super-resolution-android`](../super-resolution-android) — `GET /api/mobile-status` на этом сервере.
+
 ## Структура проекта
 
 ```
 super-resolution/
-├── web/app/                    # FastAPI + HTMX UI
+├── vendor/FlashSR/             # код модели (upstream, см. лицензии)
 │   └── templates/              # expert_fieldsets, ai_fieldset, export_fieldset, opt_tip
 ├── scripts/
 │   ├── worker.py               # consumer RabbitMQ
@@ -238,6 +240,8 @@ super-resolution/
 │   ├── progress.py             # прогресс консоль + SQLite
 │   ├── job_cancel.py           # кооперативная отмена
 │   ├── download_utils.py       # скачивание + cleanup
+│   ├── messaging.py            # RabbitMQ publish
+│   ├── mobile_status.py        # GET /api/mobile-status
 │   └── db.py                   # SQLite jobs
 ├── vendor/FlashSR/             # код модели (upstream, см. лицензии)
 ├── data/app.db                 # журнал задач

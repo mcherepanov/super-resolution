@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import sys
+import time
 from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -41,6 +42,7 @@ from download_utils import (  # noqa: E402
 )
 from ffmpeg_ops import INPUT_EXTENSIONS  # noqa: E402
 from messaging import publish_job  # noqa: E402
+from mobile_status import build_mobile_status  # noqa: E402
 from process_options import (  # noqa: E402
     has_transformation,
     options_from_form,
@@ -293,6 +295,19 @@ def jobs_partial(request: Request, _: None = Depends(verify_auth)) -> HTMLRespon
         "jobs_table.html",
         {"request": request, "jobs": list_jobs()},
     )
+
+
+@app.get("/api/mobile-status")
+def api_mobile_status(_: None = Depends(verify_auth)) -> dict:
+    """JSON для Android-клиента: очередь, worker, статистика за сегодня."""
+    try:
+        return build_mobile_status()
+    except Exception as exc:
+        return {
+            "status": "error",
+            "timestamp": int(time.time()),
+            "error_message": str(exc)[:500],
+        }
 
 
 @app.post("/jobs/{job_id}/cancel", response_class=HTMLResponse)

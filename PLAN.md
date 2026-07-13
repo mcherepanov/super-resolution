@@ -336,6 +336,20 @@ enhance() / run_pipeline() / cue_batch
 
 ---
 
+## Этап 9 — Android: монитор очереди (отдельный репозиторий)
+
+Репозиторий: **`super-resolution-android`** (рядом с этим проектом, не внутри).
+
+### Backend (этот репозиторий)
+- [x] `scripts/mobile_status.py` — очередь, worker, `tasks_completed_today`
+- [x] `GET /api/mobile-status` (JSON, тот же `APP_PASSWORD` что и Web UI)
+- [ ] проверка с телефона в LAN
+
+### Android (`super-resolution-android`)
+- [ ] Kotlin + Jetpack Compose — см. `PROJECT_PLAN.md` в том репозитории
+
+---
+
 ## Этап 4 — Мультиюзер (не планируется)
 
 - [ ] таблица `users`, auth, изоляция каталогов
