@@ -172,6 +172,19 @@ def enqueue_process_filenames(
     }
 
 
+def delete_input_file(filename: str) -> dict[str, Any]:
+    name = Path(filename).name
+    path = (INPUT_DIR / name).resolve()
+    if not path.is_file() or path.suffix.lower() not in AUDIO_EXTENSIONS:
+        raise ValueError("file not found")
+    if path.parent.resolve() != INPUT_DIR.resolve():
+        raise ValueError("invalid path")
+    if has_active_job_for_input(str(path)):
+        raise ValueError("file busy")
+    path.unlink()
+    return {"deleted": name}
+
+
 def list_ready_jobs() -> list[dict[str, Any]]:
     ready: list[dict[str, Any]] = []
     for job in list_jobs():

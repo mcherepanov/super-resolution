@@ -43,6 +43,7 @@ from download_utils import (  # noqa: E402
 )
 from mobile_status import build_mobile_status  # noqa: E402
 from mobile_api import (  # noqa: E402
+    delete_input_file as mobile_delete_input_file,
     enqueue_process_filenames,
     get_job_download,
     list_input_files as mobile_list_input_files,
@@ -328,6 +329,20 @@ async def api_input_upload(
     if not uploads:
         raise HTTPException(400, "no files")
     result = await mobile_upload_files(uploads)
+    return {"status": "ok", **result}
+
+
+@app.delete("/api/input/files/{filename}")
+def api_delete_input_file(filename: str, _: None = Depends(verify_auth)) -> dict:
+    try:
+        result = mobile_delete_input_file(filename)
+    except ValueError as exc:
+        msg = str(exc)
+        if msg == "file not found":
+            raise HTTPException(404, msg) from exc
+        if msg == "file busy":
+            raise HTTPException(409, "файл в очереди или обрабатывается") from exc
+        raise HTTPException(400, msg) from exc
     return {"status": "ok", **result}
 
 
