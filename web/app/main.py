@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from pydantic import BaseModel, Field
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -40,9 +41,17 @@ from download_utils import (  # noqa: E402
     prepare_batch_download,
     prepare_download,
 )
+from mobile_status import build_mobile_status  # noqa: E402
+from mobile_api import (  # noqa: E402
+    enqueue_process_filenames,
+    get_job_download,
+    list_input_files as mobile_list_input_files,
+    list_ready_jobs as mobile_list_ready_jobs,
+    resolve_process_options,
+    upload_files as mobile_upload_files,
+)
 from ffmpeg_ops import INPUT_EXTENSIONS  # noqa: E402
 from messaging import publish_job  # noqa: E402
-from mobile_status import build_mobile_status  # noqa: E402
 from process_options import (  # noqa: E402
     has_transformation,
     job_options_summary,
@@ -293,6 +302,82 @@ def api_mobile_status(_: None = Depends(verify_auth)) -> dict:
             "timestamp": int(time.time()),
             "error_message": str(exc)[:500],
         }
+
+
+class MobileProcessRequest(BaseModel):
+    filenames: list[str] = Field(min_length=1)
+    preset: str | None = None
+    options: dict | None = None
+
+
+@app.get("/api/input/files")
+def api_input_files(_: None = Depends(verify_auth)) -> dict:
+    return {"status": "ok", "files": mobile_list_input_files()}
+
+
+@app.post("/api/input/upload")
+async def api_input_upload(
+    files: list[UploadFile] = File(...),
+    _: None = Depends(verify_auth),
+) -> dict:
+    uploads: list[tuple[str, bytes]] = []
+    for uf in files:
+        if not uf.filename:
+            continue
+        uploads.append((uf.filename, await uf.read()))
+    if not uploads:
+        raise HTTPException(400, "no files")
+    result = await mobile_upload_files(uploads)
+    return {"status": "ok", **result}
+
+
+@app.post("/api/process")
+def api_process(
+    body: MobileProcessRequest,
+    _: None = Depends(verify_auth),
+) -> dict:
+    try:
+        options = resolve_process_options(
+            preset=body.preset,
+            options=body.options,
+            enhance_available=ENHANCE_AVAILABLE,
+        )
+        result = enqueue_process_filenames(body.filenames, options)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"status": "ok", **result}
+
+
+@app.get("/api/jobs/ready")
+def api_jobs_ready(_: None = Depends(verify_auth)) -> dict:
+    return {"status": "ok", "jobs": mobile_list_ready_jobs()}
+
+
+@app.get("/api/jobs/{job_id}/download")
+def api_job_download(
+    job_id: int,
+    background_tasks: BackgroundTasks,
+    delete_after: bool = False,
+    _: None = Depends(verify_auth),
+) -> FileResponse:
+    try:
+        job, payload = get_job_download(job_id)
+    except DownloadError as exc:
+        msg = str(exc)
+        if msg == "job not found":
+            raise HTTPException(404, msg) from exc
+        if msg == "job not ready":
+            raise HTTPException(400, msg) from exc
+        raise HTTPException(404, msg) from exc
+
+    background_tasks.add_task(
+        cleanup_after_download,
+        payload,
+        delete_artifacts=delete_after,
+        delete_job_fn=delete_job,
+        job_id=job_id,
+    )
+    return FileResponse(payload.path, filename=payload.filename)
 
 
 @app.post("/jobs/{job_id}/cancel", response_class=HTMLResponse)
