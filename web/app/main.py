@@ -45,6 +45,7 @@ from messaging import publish_job  # noqa: E402
 from mobile_status import build_mobile_status  # noqa: E402
 from process_options import (  # noqa: E402
     has_transformation,
+    job_options_summary,
     options_from_form,
     options_summary,
     parse_options,
@@ -248,23 +249,7 @@ def _enqueue_cue_batch(cue_path: Path, pipeline: dict) -> int | None:
 
 
 def _job_options_summary(job: dict) -> str:
-    jt = job.get("job_type") or "process"
-    if jt == "cue_split":
-        try:
-            opts = json.loads(job.get("options") or "{}")
-            fmt = opts.get("split_format", "wav")
-            return f"CUE split → {fmt}"
-        except json.JSONDecodeError:
-            return "CUE split"
-    if jt == "cue_batch":
-        return "CUE batch"
-    raw = job.get("options")
-    if not raw:
-        return "—"
-    try:
-        return options_summary(parse_options(raw))
-    except (json.JSONDecodeError, ValueError):
-        return "—"
+    return job_options_summary(job)
 
 
 @app.on_event("startup")

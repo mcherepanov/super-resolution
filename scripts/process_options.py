@@ -112,6 +112,27 @@ def options_summary(opts: dict[str, Any]) -> str:
     return ", ".join(parts) if parts else "—"
 
 
+def job_options_summary(job: dict[str, Any]) -> str:
+    """Одна строка «Обработка» как в веб-таблице jobs."""
+    jt = job.get("job_type") or "process"
+    if jt == "cue_split":
+        try:
+            opts = json.loads(job.get("options") or "{}")
+            fmt = opts.get("split_format", "wav")
+            return f"CUE split → {fmt}"
+        except json.JSONDecodeError:
+            return "CUE split"
+    if jt == "cue_batch":
+        return "CUE batch"
+    raw = job.get("options")
+    if not raw:
+        return "—"
+    try:
+        return options_summary(parse_options(raw))
+    except (json.JSONDecodeError, ValueError):
+        return "—"
+
+
 def _map_slider(val: Any, lo: int, hi: int, default_pos: int = 50) -> int:
     pos = _clamp_int(val, 0, 100, default_pos)
     return int(round(lo + (hi - lo) * pos / 100.0))
