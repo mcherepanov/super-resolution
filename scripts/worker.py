@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 
 os.environ.setdefault("TQDM_DISABLE", "1")
 
@@ -20,11 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from audio_pipeline import run_pipeline
 from cue_split import run_cue_batch, run_cue_split
-from db import get_job, init_db, try_begin_processing, update_job, utc_now_iso
+from db import get_conn, get_job, init_db, try_begin_processing, update_job, utc_now_iso
 from ffmpeg_ops import FfmpegError, AudioIntegrityError, validate_input_audio
 from input_integrity import record_input_check
 from job_cancel import JobCancelled, job_context
-from messaging import QUEUE_NAME, rabbit_connection_params
+from messaging import QUEUE_NAME, publish_job, rabbit_connection_params
 from process_options import parse_options
 from progress import (
     ProgressReporter,
@@ -319,6 +320,66 @@ def _safe_ack(ch: Any, delivery_tag: int) -> None:
         print(f"Ack error: {exc}")
 
 
+def _recover_orphaned_jobs(channel: Any) -> None:
+    """
+    После рестарта worker/Rabbit:
+    - processing без живого процесса → cancelled (если cancel) или снова queued;
+    - queued в SQLite при пустой/неполной очереди Rabbit → republish.
+    """
+    with get_conn() as conn:
+        orphans = [
+            dict(row)
+            for row in conn.execute("SELECT * FROM jobs WHERE status = 'processing'")
+        ]
+
+    for job in orphans:
+        job_id = int(job["id"])
+        if int(job.get("cancel_requested") or 0):
+            _cancel_job(job_id, job)
+            continue
+        dst = Path(job.get("output_path", ""))
+        if dst.name:
+            _cleanup_work_files(dst, job_id)
+            if dst.exists():
+                dst.unlink(missing_ok=True)
+        update_job(
+            job_id,
+            status="queued",
+            started_at=None,
+            finished_at=None,
+            progress_pct=None,
+            progress_detail=None,
+            error_message=None,
+        )
+        print(f"Job {job_id}: orphaned processing → queued")
+
+    declared = channel.queue_declare(queue=QUEUE_NAME, durable=True)
+    msg_count = int(declared.method.message_count)
+
+    with get_conn() as conn:
+        queued_ids = [
+            int(row["id"])
+            for row in conn.execute(
+                "SELECT id FROM jobs WHERE status = 'queued' ORDER BY id ASC"
+            )
+        ]
+
+    if not queued_ids:
+        return
+    if msg_count >= len(queued_ids):
+        print(
+            f"Queue sync OK: rabbit={msg_count}, queued_jobs={len(queued_ids)}"
+        )
+        return
+
+    print(
+        f"Queue sync: rabbit={msg_count} < queued_jobs={len(queued_ids)}, republishing"
+    )
+    for job_id in queued_ids:
+        publish_job(job_id)
+        print(f"Job {job_id}: published")
+
+
 def main() -> None:
     init_db()
 
@@ -337,6 +398,7 @@ def main() -> None:
             channel = connection.channel()
             channel.queue_declare(queue=QUEUE_NAME, durable=True)
             channel.basic_qos(prefetch_count=1)
+            _recover_orphaned_jobs(channel)
 
             def on_message(ch, method, _props, body: bytes) -> None:
                 try:
@@ -356,6 +418,8 @@ def main() -> None:
             pika.exceptions.ChannelWrongStateError,
             pika.exceptions.ChannelClosedByBroker,
             pika.exceptions.StreamLostError,
+            socket.gaierror,
+            ConnectionError,
         ) as exc:
             print(f"RabbitMQ not ready ({exc}), retry in 5s...")
             time.sleep(5)
