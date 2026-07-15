@@ -42,6 +42,7 @@ from download_utils import (  # noqa: E402
     prepare_download,
 )
 from mobile_status import build_mobile_status  # noqa: E402
+from stats import build_stats  # noqa: E402
 from version import get_version_info  # noqa: E402
 from mobile_api import (  # noqa: E402
     cancel_job as mobile_cancel_job,
@@ -301,11 +302,28 @@ def api_version(_: None = Depends(verify_auth)) -> dict:
     }
 
 
-@app.get("/api/mobile-status")
-def api_mobile_status(_: None = Depends(verify_auth)) -> dict:
-    """JSON для Android-клиента: очередь, worker, статистика за сегодня."""
+@app.get("/api/stats")
+def api_stats(
+    tz: str | None = None,
+    _: None = Depends(verify_auth),
+) -> dict:
+    """Статистика по локальному дню клиента (IANA timezone)."""
     try:
-        return build_mobile_status()
+        return build_stats(tz)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/mobile-status")
+def api_mobile_status(
+    tz: str | None = None,
+    _: None = Depends(verify_auth),
+) -> dict:
+    """JSON для Android-клиента: очередь, worker, статистика по TZ клиента."""
+    try:
+        return build_mobile_status(tz)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     except Exception as exc:
         return {
             "status": "error",
