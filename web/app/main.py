@@ -44,9 +44,11 @@ from download_utils import (  # noqa: E402
 from mobile_status import build_mobile_status  # noqa: E402
 from version import get_version_info  # noqa: E402
 from mobile_api import (  # noqa: E402
+    cancel_job as mobile_cancel_job,
     delete_input_file as mobile_delete_input_file,
     enqueue_process_filenames,
     get_job_download,
+    list_all_jobs as mobile_list_all_jobs,
     list_input_files as mobile_list_input_files,
     list_ready_jobs as mobile_list_ready_jobs,
     resolve_process_options,
@@ -370,9 +372,31 @@ def api_process(
     return {"status": "ok", **result}
 
 
+@app.get("/api/jobs")
+def api_jobs_list(
+    limit: int = 100,
+    _: None = Depends(verify_auth),
+) -> dict:
+    return {"status": "ok", "jobs": mobile_list_all_jobs(limit=limit)}
+
+
 @app.get("/api/jobs/ready")
 def api_jobs_ready(_: None = Depends(verify_auth)) -> dict:
     return {"status": "ok", "jobs": mobile_list_ready_jobs()}
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+def api_job_cancel(job_id: int, _: None = Depends(verify_auth)) -> dict:
+    try:
+        result = mobile_cancel_job(job_id)
+    except ValueError as exc:
+        msg = str(exc)
+        if msg == "job not found":
+            raise HTTPException(404, msg) from exc
+        if msg == "job not cancellable":
+            raise HTTPException(409, "задачу нельзя прервать") from exc
+        raise HTTPException(400, msg) from exc
+    return {"status": "ok", **result}
 
 
 @app.get("/api/jobs/{job_id}/download")

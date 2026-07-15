@@ -16,6 +16,7 @@ from input_integrity import (
     is_input_corrupted,
     record_input_check,
 )
+from job_cancel import request_cancel
 from messaging import publish_job
 from process_options import has_transformation, job_options_summary, parse_options
 
@@ -227,6 +228,47 @@ def list_ready_jobs() -> list[dict[str, Any]]:
             "options_summary": job_options_summary(job),
         })
     return ready
+
+
+def _job_public(job: dict[str, Any]) -> dict[str, Any]:
+    status = job.get("status") or "queued"
+    return {
+        "id": job["id"],
+        "filename": job["filename"],
+        "status": status,
+        "job_type": job.get("job_type") or "process",
+        "output_format": job.get("output_format"),
+        "options_summary": job_options_summary(job),
+        "created_at": job.get("created_at"),
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+        "duration_sec": job.get("duration_sec"),
+        "progress_pct": job.get("progress_pct"),
+        "progress_detail": job.get("progress_detail"),
+        "error_message": job.get("error_message"),
+        "cancel_requested": bool(job.get("cancel_requested")),
+        "can_cancel": status in ("queued", "processing"),
+    }
+
+
+def list_all_jobs(limit: int = 100) -> list[dict[str, Any]]:
+    limit = max(1, min(int(limit), 200))
+    return [_job_public(job) for job in list_jobs(limit=limit)]
+
+
+def cancel_job(job_id: int) -> dict[str, Any]:
+    ok, message = request_cancel(job_id)
+    if not ok:
+        if message == "задача не найдена":
+            raise ValueError("job not found")
+        if message == "задачу нельзя прервать":
+            raise ValueError("job not cancellable")
+        raise ValueError(message)
+    job = get_job(job_id)
+    return {
+        "message": message,
+        "job": _job_public(job) if job else None,
+    }
 
 
 def get_job_download(job_id: int):

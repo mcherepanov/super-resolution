@@ -29,3 +29,6 @@ volumes/FlashSR/weights/*
 .idea/
 .vscode/
 *.swp
+
+# локальные заметки
+PORTFOLIO_PLAN.md
